@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManager
+import com.intellij.openapi.startup.ProjectActivity
 import com.intellij.openapi.wm.StatusBar
 import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
@@ -20,7 +21,7 @@ class ElixirSdkStatusWidgetFactory : StatusBarWidgetFactory {
     init {
         setupSettingsListener()
     }
-    
+
     override fun getId(): String = ElixirSdkStatusWidget.ID
 
     override fun getDisplayName(): String = "Elixir SDK Status"
@@ -100,6 +101,32 @@ class ElixirSdkStatusWidgetFactory : StatusBarWidgetFactory {
 
                 else -> {
                     LOG.debug("Widget state already correct for project: ${project.name}")
+                }
+            }
+        }
+    }
+
+}
+
+/**
+ * Startup activity to ensure the widget is shown after IDE restart when the setting is enabled.
+ * This runs after the project is fully opened and settings are loaded.
+ */
+class ElixirSdkStatusWidgetStartupActivity : ProjectActivity {
+    override suspend fun execute(project: Project) {
+        val shouldShow = ElixirExperimentalSettings.instance.state.enableStatusBarWidget
+        if (shouldShow) {
+            LOG.debug("Startup activity: enableStatusBarWidget is true, ensuring widget is added for ${project.name}")
+            ApplicationManager.getApplication().invokeLater {
+                if (!project.isDisposed) {
+                    val statusBar = WindowManager.getInstance().getStatusBar(project)
+                    val widget = statusBar?.getWidget(ElixirSdkStatusWidget.ID)
+
+                    if (statusBar != null && widget == null) {
+                        LOG.debug("Adding widget during startup for project: ${project.name}")
+                        val newWidget = ElixirSdkStatusWidget(project)
+                        statusBar.addWidget(newWidget, "before Position")
+                    }
                 }
             }
         }
