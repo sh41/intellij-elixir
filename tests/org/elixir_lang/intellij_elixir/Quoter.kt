@@ -166,28 +166,12 @@ object Quoter {
                     ApplicationManager.getApplication().runReadAction(Computable { ElixirPsiImplUtil.quote(file) })
                 assertQuotedCorrectly(expectedQuoted, actualQuoted)
             } else if (statusString == "error") {
-                val error = expectedQuoted as OtpErlangTuple
-                val location = when (val metadata = error.elementAt(0)) {
-                    is OtpErlangLong -> "on line $metadata"
-                    is OtpErlangList -> {
-                        val line = metadata.elementAt(0)
-                        val column = metadata.elementAt(1)
-                        "on line $line in column $column"
-                    }
-
-                    else -> TODO()
-                }
-                val tokenBinary = error.elementAt(2) as OtpErlangBinary
-                val token = ElixirPsiImplUtil.javaString(tokenBinary)
-                val message = errorMessage(error.elementAt(1), token)
                 throw AssertionError(
-                    "quoter returned \"$message\" $location due to $token, use assertQuotesAroundError if error is expect in Elixir natively, but not in intellij-elixir plugin"
+                    "quoter returned ${rejection(quotedMessage)}, use assertQuotesAroundError if error is expect in Elixir natively, but not in intellij-elixir plugin"
                 )
             } else if (statusString == "raise") {
-                val exception = (expectedQuoted as OtpErlangAtom).atomValue()
-                val message = ElixirPsiImplUtil.javaString(quotedMessage.elementAt(2) as OtpErlangBinary)
                 throw AssertionError(
-                    "quoter raised $exception \"$message\", use assertParsedAndQuotedAroundErrorOrRaise(dialect, exception) if releases below dialect reject the construct that way"
+                    "quoter ${rejection(quotedMessage)}, use assertParsedAndQuotedAroundErrorOrRaise(dialect, exception) if releases below dialect reject the construct that way"
                 )
             }
         } catch (e: IOException) {
@@ -198,6 +182,38 @@ object Quoter {
             daemonDied(e)
         }
     }
+
+    /** How the quoter rejected source: an `error` answer's message, location and token, or a `raise` answer's exception. */
+    @JvmStatic
+    fun rejection(quoted: OtpErlangTuple): String =
+        when (val status = (quoted.elementAt(0) as OtpErlangAtom).atomValue()) {
+            "error" -> {
+                val error = quoted.elementAt(1) as OtpErlangTuple
+                val location = when (val metadata = error.elementAt(0)) {
+                    is OtpErlangLong -> "on line $metadata"
+                    is OtpErlangList -> {
+                        val line = metadata.elementAt(0)
+                        val column = metadata.elementAt(1)
+                        "on line $line in column $column"
+                    }
+
+                    else -> TODO()
+                }
+                val token = ElixirPsiImplUtil.javaString(error.elementAt(2) as OtpErlangBinary)
+                val message = errorMessage(error.elementAt(1), token)
+
+                "\"$message\" $location due to $token"
+            }
+
+            "raise" -> {
+                val exception = (quoted.elementAt(1) as OtpErlangAtom).atomValue()
+                val message = ElixirPsiImplUtil.javaString(quoted.elementAt(2) as OtpErlangBinary)
+
+                "raised $exception \"$message\""
+            }
+
+            else -> throw IllegalArgumentException("the quoter did not reject the source: it answered $status")
+        }
 
     /** A `{prefix, suffix}` message surrounds its token, as `elixir_errors:parse_error/5` joins them. */
     internal fun errorMessage(message: OtpErlangObject, token: String): String =
