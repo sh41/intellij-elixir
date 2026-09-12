@@ -22,7 +22,19 @@ files =
   |> Enum.filter(&File.exists?(Path.join(root, &1)))
 
 # Argument positions holding source, by helper.
-local = %{parse!: [0], assert_syntax_error: [1], assert_same: [0], assert_format: [0, 1], assert_eval_raise: [2]}
+local = %{
+  parse!: [0],
+  assert_syntax_error: [1],
+  assert_same: [0],
+  assert_format: [0, 1],
+  assert_eval_raise: [2],
+  assert_compile_error: [1],
+  assert_token_missing: [1],
+  assert_mismatched_delimiter_error: [1],
+  capture_raise: [0],
+  capture_eval: [0],
+  capture_compile: [0]
+}
 
 remote = %{
   string_to_quoted: [0],
