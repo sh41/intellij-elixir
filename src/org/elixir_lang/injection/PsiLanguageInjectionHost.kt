@@ -11,14 +11,14 @@ import org.elixir_lang.settings.ElixirExperimentalSettings
 
 object PsiLanguageInjectionHost {
     @JvmStatic
-    fun isValidHost(psiElement: PsiElement): Boolean {
+    fun isValidHost(psiElement: PsiElement): Boolean =
         // If the element is a Sigil, then it is definitely a valid host
         // @todo make this more precise, to ~H etc
-        if (ElixirExperimentalSettings.instance.state.enableHtmlInjection && psiElement as? Sigil != null) {
-            return true
-        }
+        (ElixirExperimentalSettings.instance.state.enableHtmlInjection && psiElement is Sigil) || isDocumentation(psiElement)
 
-        return when (val greatGrandParent = psiElement.parent?.parent?.parent) {
+    /** Returns `true` when [psiElement] is the value of a documentation attribute, such as `@doc`. */
+    internal fun isDocumentation(psiElement: PsiElement): Boolean =
+        when (val greatGrandParent = psiElement.parent?.parent?.parent) {
             is AtUnqualifiedNoParenthesesCall<*> -> isDocumentationHost(greatGrandParent)
             is ElixirNoParenthesesKeywords -> {
                 greatGrandParent
@@ -30,7 +30,6 @@ object PsiLanguageInjectionHost {
             }
             else -> false
         }
-    }
 
     /**
      * Returns `true` when [atUnqualifiedNoParenthesesCall] is an `@doc`, `@moduledoc`, `@typedoc`,
