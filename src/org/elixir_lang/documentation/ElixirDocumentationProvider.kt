@@ -7,6 +7,7 @@ import com.intellij.lang.documentation.DocumentationProvider
 import com.intellij.lang.parser.GeneratedParserUtilBase.DummyBlock
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.*
@@ -24,7 +25,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.impl.call.macroChildCallSequence
 import org.elixir_lang.psi.impl.childExpressions
 import org.elixir_lang.psi.impl.identifierName
-import org.elixir_lang.psi.impl.stripAccessExpression
 import org.elixir_lang.psi.operation.capture.NonNumeric
 import org.elixir_lang.psi.stub.type.call.Stub.isModular
 import org.elixir_lang.reference.CaptureNameArity
@@ -68,11 +68,15 @@ internal class ElixirDocumentationProvider : DocumentationProvider {
     }
 
     private tailrec fun collectDocComments(element: PsiElement, sink: Consumer<in PsiDocCommentBase>) {
+        ProgressManager.checkCanceled()
+
         // ExperimentalPsiDummyBlock unstable, but used in 2026.1 so we need to handle it.
         @Suppress("UnstableApiUsage")
         when (element) {
             is Call -> collectDocComments(element, sink)
-            is ElixirAccessExpression -> collectDocComments(element.stripAccessExpression(), sink)
+            // Not `stripAccessExpression()`: it returns an access expression without exactly one child unchanged, and
+            // this tail call would revisit it forever.
+            is ElixirAccessExpression -> collectDocComments(element.children.singleOrNull() ?: return, sink)
             is DummyBlock, is ElixirAlias,
             is ElixirAtom,
                 // Numbers

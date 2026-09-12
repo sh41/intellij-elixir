@@ -77,6 +77,10 @@
 
 ### Bug Fixes
 
+- [#PR-TBD](https://github.com/KronicDeth/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **Opening a file with a heredoc whose closing `"""` follows its content on the same line no longer leaves a
+    background thread looping forever.** Refs [#4080](https://github.com/KronicDeth/intellij-elixir/issues/4080).
+
 - [#4065](https://github.com/KronicDeth/intellij-elixir/pull/4065) [@sh41](https://github.com/sh41)
   - **A module's Structure View tree and its caret sync now come from one list, so an ExUnit `test`
     written outside a `describe` gets its own node and an `EEx.function_from_*` node follows the
