@@ -26,7 +26,7 @@ import java.util.List;
  * are only whitespace or line endings.
  */
 public class ElixirSnippetParsingTestCase extends ParsingTestCase {
-    private static final Path SNIPPETS =
+    static final Path SNIPPETS =
             Path.of("testData", "org", "elixir_lang", "parser_definition", "elixir_snippets", "snippets.jsonl");
     private static final Path KNOWN_FAILURES =
             Path.of("testData", "org", "elixir_lang", "parser_definition", "snippet_known_failures.tsv");
@@ -76,7 +76,7 @@ public class ElixirSnippetParsingTestCase extends ParsingTestCase {
         return suite;
     }
 
-    private static String source(@NotNull JsonObject snippet) {
+    static String source(@NotNull JsonObject snippet) {
         return StringUtil.convertLineSeparators(snippet.get("source").getAsString());
     }
 
