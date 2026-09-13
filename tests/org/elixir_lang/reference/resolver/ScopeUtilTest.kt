@@ -1,13 +1,22 @@
 package org.elixir_lang.reference.resolver
 
 import com.intellij.codeInsight.daemon.SyntheticPsiFileSupport
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.util.io.FileUtil
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiManager
 import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.testFramework.LightVirtualFile
+import org.elixir_lang.ElixirFileType
 import org.elixir_lang.ElixirLanguage
 import org.elixir_lang.PlatformTestCase
+import org.intellij.plugins.markdown.lang.MarkdownLanguage
+import java.io.File
 import java.util.concurrent.Callable
 
 class ScopeUtilTest : PlatformTestCase() {
@@ -78,6 +87,50 @@ class ScopeUtilTest : PlatformTestCase() {
         }).executeSynchronously()
 
         assertSame(GlobalSearchScope.allScope(project), scope)
+    }
+
+    /** An injected fragment's own light file is never marked, so only its host leads back to the file on disk. */
+    fun testInjectedFragmentInDiffFileRecoversModuleScope() {
+        val markdown = "```elixir\nFoo\n```\n"
+        val realVirtualFile = myFixture.configureByText("foo.md", markdown).virtualFile
+
+        val outsiderFile = PsiFileFactory.getInstance(project)
+            .createFileFromText("foo.md", MarkdownLanguage.INSTANCE, markdown, true, false)
+        SyntheticPsiFileSupport.markFileWithUrl(outsiderFile.viewProvider.virtualFile, realVirtualFile.url)
+
+        val scope = ReadAction.nonBlocking(Callable {
+            val injected = InjectedLanguageManager.getInstance(project).findInjectedElementAt(outsiderFile, markdown.indexOf("Foo"))
+            assertEquals("Precondition: Elixir is injected into the code block", ElixirLanguage, injected?.language)
+
+            narrowedScope(injected!!, project)
+        }).executeSynchronously()
+
+        assertNotSame(
+            "Should narrow to the host's recovered module instead of allScope",
+            GlobalSearchScope.allScope(project),
+            scope
+        )
+        assertTrue("Recovered module scope should contain the original file", scope.contains(realVirtualFile))
+    }
+
+    /** Only a marked URL leads back to a file on disk: a light file's path does not say it shows that file. */
+    fun testUnmarkedLightFileIsNotMappedByItsPath() {
+        val directory = FileUtil.createTempDirectory("scope_util", null)
+        File(directory, "foo.ex").writeText(source)
+        val localDirectory = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(directory)!!
+        val lightFile = object : LightVirtualFile("foo.ex", ElixirFileType.INSTANCE, source) {
+            override fun getParent(): VirtualFile = localDirectory
+        }
+        assertNotNull(
+            "Precondition: the light file's path names a file on disk",
+            LocalFileSystem.getInstance().refreshAndFindFileByPath(lightFile.path)
+        )
+
+        val effectiveFile = ReadAction.nonBlocking(Callable {
+            effectiveVirtualFile(elementIn(PsiManager.getInstance(project).findFile(lightFile)!!))
+        }).executeSynchronously()
+
+        assertSame(lightFile, effectiveFile)
     }
 
     private fun elementIn(file: PsiFile): PsiElement =

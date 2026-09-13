@@ -1,6 +1,7 @@
 package org.elixir_lang.reference.resolver
 
 import com.intellij.codeInsight.daemon.SyntheticPsiFileSupport
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.module.ModuleUtil
 import com.intellij.openapi.module.impl.scopes.JdkScope
 import com.intellij.openapi.project.Project
@@ -10,28 +11,29 @@ import com.intellij.openapi.roots.ModuleRootManager
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.ProjectRootManager
 import com.intellij.openapi.roots.impl.LibraryScopeCache
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.util.concurrency.annotations.RequiresReadLock
+import org.jetbrains.annotations.VisibleForTesting
 
 /**
- * The on-disk [VirtualFile] that should drive module / scope selection for [element], if recoverable.
+ * The [VirtualFile] that should drive module / scope selection for [element]: for a synthetic file, the on-disk file
+ * it shows when that can be recovered, and otherwise the synthetic file itself.
  *
  * For normal files this is just `containingFile.originalFile.virtualFile`.  Files shown in the
  * commit / VCS diff view are backed by a synthetic [com.intellij.testFramework.LightVirtualFile]
- * which - although its path points at a real source file - is not part of any module, so
- * [ModuleUtil.findModuleForFile] returns null for it.  Depending on whether the view provider's
- * event system is enabled, that light file surfaces through either `originalFile.virtualFile` or
- * `viewProvider.virtualFile`; in both cases we map it back to the real file via [recoverLocalFile].
- *
- * Returns null for scratches and injected fragments that have no recoverable on-disk file.
+ * which is not part of any module, so [ModuleUtil.findModuleForFile] returns null for it.  Depending
+ * on whether the view provider's event system is enabled, that light file surfaces through either
+ * `originalFile.virtualFile` or `viewProvider.virtualFile`; in both cases we map it back to the real
+ * file via [recoverLocalFile].
  */
+@VisibleForTesting
 @RequiresReadLock
-private fun effectiveVirtualFile(element: PsiElement): VirtualFile? {
-    val containingFile = element.containingFile ?: return null
+internal fun effectiveVirtualFile(element: PsiElement): VirtualFile? {
+    // An injected fragment's own light file is never marked; its host's file may be.
+    val containingFile = InjectedLanguageManager.getInstance(element.project).getTopLevelFile(element) ?: return null
 
     val backingFile = containingFile.originalFile.virtualFile
         ?: containingFile.viewProvider.virtualFile
@@ -44,18 +46,12 @@ private fun effectiveVirtualFile(element: PsiElement): VirtualFile? {
  * already a real local file (or nothing can be recovered).
  *
  * The diff platform marks these [com.intellij.testFramework.LightVirtualFile]s via
- * [SyntheticPsiFileSupport.markFile] with the original file URL, which we resolve first; as a
- * fallback we resolve the light file's own path so navigation still works when the file was never
- * marked.
+ * [SyntheticPsiFileSupport.markFile] with the original file URL.
  */
 private fun recoverLocalFile(file: VirtualFile): VirtualFile? {
     if (file.isInLocalFileSystem) return null
 
-    SyntheticPsiFileSupport.getOriginalFileUrl(file)?.let { url ->
-        VirtualFileManager.getInstance().findFileByUrl(url)?.let { return it }
-    }
-
-    return LocalFileSystem.getInstance().findFileByPath(file.path)
+    return SyntheticPsiFileSupport.getOriginalFileUrl(file)?.let { VirtualFileManager.getInstance().findFileByUrl(it) }
 }
 
 /**
@@ -63,7 +59,7 @@ private fun recoverLocalFile(file: VirtualFile): VirtualFile? {
  * dependencies, and the SDK + non-SDK library sources attached to that specific module.
  *
  * Falls back to [GlobalSearchScope.allScope] when no module can be determined
- * (e.g. scratches, injected fragments).
+ * (e.g. scratches).
  *
  * Elixir stubs are indexed from .ex source files (not .beam class files), so
  * defmodule declarations live in SDK and library source roots.
