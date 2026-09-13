@@ -1,0 +1,361 @@
+name: Runner performance probe (not for merge)
+
+# Throwaway measurement of why the Windows test leg is slower than the Linux legs: runner hardware,
+# C: against D: against a Dev Drive, memory and paging during the real leg's build and tests. Not for merge.
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/runner-perf-probe.yml
+      - .github/runner-perf-probe/**
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  storage:
+    name: storage (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-2025, ubuntu-22.04 ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            .github/runner-perf-probe
+          sparse-checkout-cone-mode: false
+
+      - name: Inventory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/runner-perf-probe/inventory.ps1 -OutDir "$env:RUNNER_TEMP/probe"
+
+      - name: Inventory (Linux)
+        if: runner.os == 'Linux'
+        run: bash .github/runner-perf-probe/inventory.sh "$RUNNER_TEMP/probe"
+
+      # Native Dev Drive needs at least 50 GB; Dynamic only grows the VHDX on D: as it is written.
+      - name: Set up Dev Drive
+        if: runner.os == 'Windows'
+        uses: samypr100/setup-dev-drive@562171fe8df7401fdf582d766cd3b6ab80d5b1a0 # v4.1.0
+        with:
+          drive-size: 60GB
+          drive-path: 'D:\dev_drive.vhdx'
+
+      - name: Dev Drive state
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          fsutil devdrv query $env:DEV_DRIVE
+          Get-Volume -DriveLetter $env:DEV_DRIVE.TrimEnd(':') | Format-List DriveLetter, FileSystem, FileSystemLabel, Size, SizeRemaining, AllocationUnitSize | Out-String | Write-Host
+          fltmc instances -v $env:DEV_DRIVE
+
+      - name: 'DiskSpd: C:, D: and Dev Drive'
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/runner-perf-probe/diskspd.ps1 -Targets 'C:\diskspd-bench', 'D:\diskspd-bench', "$env:DEV_DRIVE\diskspd-bench" -OutDir "$env:RUNNER_TEMP/probe/diskspd"
+
+      - name: Small files (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          ./.github/runner-perf-probe/smallfiles-windows.ps1 -Out "$env:RUNNER_TEMP/probe/smallfiles.jsonl"
+          python .github/runner-perf-probe/smallfiles.py --out "$env:RUNNER_TEMP/probe/smallfiles.jsonl" --summarize --title "Small-file workload (windows-2025)"
+
+      - name: Small files (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python3 .github/runner-perf-probe/smallfiles.py --out "$RUNNER_TEMP/probe/smallfiles.jsonl" --label "RUNNER_TEMP" --parent "$RUNNER_TEMP"
+          python3 .github/runner-perf-probe/smallfiles.py --out "$RUNNER_TEMP/probe/smallfiles.jsonl" --summarize --title "Small-file workload (ubuntu-22.04)"
+
+      - name: Upload probe data
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: storage-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/probe
+            !${{ runner.temp }}/probe/diskspd/diskspd
+            !${{ runner.temp }}/probe/diskspd/DiskSpd.zip
+          if-no-files-found: warn
+
+  # The Win25 test leg's steps from shared-test.yml, in its order, with a sampler running alongside and a
+  # mark at the start of each phase so its numbers can be split by phase.
+  build:
+    name: build (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 50
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2025
+            label: 'Win25'
+            artifact: build-windows-2025
+          # Only the Gradle home and TEMP move: the quoter and corpus cache paths are workspace-relative,
+          # so a workspace copy on the Dev Drive would restore them into the tree it no longer builds.
+          - os: windows-2025
+            label: 'Win25, Dev Drive'
+            artifact: build-windows-2025-dev-drive
+            dev-drive: true
+          - os: windows-2025
+            label: 'Win25, Kotlin daemon stopped before tests'
+            artifact: build-windows-2025-no-kotlin-daemon
+            stop-kotlin-daemon: true
+          - os: ubuntu-22.04
+            label: 'ubuntu-22.04'
+            artifact: build-ubuntu-22.04
+
+    # The Win25 leg's pair and platform in .github/ci-versions.json at the base commit.
+    env:
+      GRADLE_FLAGS: >-
+        -Dorg.gradle.console=plain --stacktrace --profile
+        -Pkotlin.incremental=false
+        -PelixirVersion=1.20.4
+        -PotpVersion=29.0.6
+
+    steps:
+      - name: Put temp files on the fast drive
+        id: windows-temp
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "TEMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          "TMP=$env:RUNNER_TEMP" >> $env:GITHUB_ENV
+          $state = (fsutil 8dot3name query D:) -join ' '
+          Write-Host $state
+          if ($state -match 'enabled') {
+            fsutil 8dot3name set D: 1
+          }
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Dev Drive
+        if: matrix.dev-drive
+        uses: samypr100/setup-dev-drive@562171fe8df7401fdf582d766cd3b6ab80d5b1a0 # v4.1.0
+        with:
+          drive-size: 60GB
+          drive-path: 'D:\dev_drive.vhdx'
+          env-mapping: |
+            GRADLE_USER_HOME,{{ DEV_DRIVE }}/.gradle
+            TEMP,{{ DEV_DRIVE }}/tmp
+            TMP,{{ DEV_DRIVE }}/tmp
+
+      - name: Dev Drive state
+        if: matrix.dev-drive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force (Join-Path $env:DEV_DRIVE 'tmp') | Out-Null
+          fsutil devdrv query $env:DEV_DRIVE
+          Write-Host "GRADLE_USER_HOME=$env:GRADLE_USER_HOME TEMP=$env:TEMP"
+
+      - name: Inventory (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/runner-perf-probe/inventory.ps1 -OutDir "$env:RUNNER_TEMP/probe"
+
+      - name: Inventory (Linux)
+        if: runner.os == 'Linux'
+        run: bash .github/runner-perf-probe/inventory.sh "$RUNNER_TEMP/probe"
+
+      - name: Start sampler (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'probe'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+          "PROBE_DIR=$dir" >> $env:GITHUB_ENV
+          "PROBE_START=$now" >> $env:GITHUB_ENV
+          "setup $now" | Add-Content (Join-Path $dir 'phases.txt')
+          $script = Join-Path $env:GITHUB_WORKSPACE '.github/runner-perf-probe/sampler.ps1'
+          $p = Start-Process pwsh -ArgumentList '-NoProfile', '-File', $script, '-Dir', $dir -WindowStyle Hidden -PassThru
+          "SAMPLER_PID=$($p.Id)" >> $env:GITHUB_ENV
+
+      - name: Start sampler (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          dir="$RUNNER_TEMP/probe"
+          mkdir -p "$dir"
+          now=$(date +%s)
+          echo "PROBE_DIR=$dir" >> "$GITHUB_ENV"
+          echo "PROBE_START=$now" >> "$GITHUB_ENV"
+          echo "setup $now" >> "$dir/phases.txt"
+          nohup setsid bash .github/runner-perf-probe/sampler.sh "$dir" > "$dir/sampler.log" 2>&1 < /dev/null &
+          echo "SAMPLER_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Setup Build Environment
+        id: setup-env
+        uses: ./.github/actions/setup-env
+        with:
+          elixir-version: '1.20.4'
+          otp-version: '29.0.6'
+          idea-version: '2026.1.5'
+          java-version: '21'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          gradle-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+          build-scan-publish: 'true'
+          skip-searchable-options: 'true'
+
+      - name: CPU benchmark (JBR)
+        run: |
+          echo "cpubench $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          java -Xmx2g .github/runner-perf-probe/Bench.java | tee "$PROBE_DIR/cpu-bench.txt"
+          {
+            echo "### CPU benchmark (${{ matrix.label }})"
+            echo
+            echo '```'
+            cat "$PROBE_DIR/cpu-bench.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Resolve quoter cache paths
+        id: quoter-cache
+        run: |
+          echo "quoterCachePaths $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew $GRADLE_FLAGS -q quoterCachePaths --github-output="$GITHUB_OUTPUT"
+          echo "restoreElixirCache $(date +%s)" >> "$PROBE_DIR/phases.txt"
+
+      - name: Restore Elixir cache
+        id: restore-elixir-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.quoter-cache.outputs.paths }}
+          key: elixir-${{ runner.os }}-${{ runner.arch }}-1.20.4-otp-29.0.6-quoter-${{ hashFiles('gradle.properties') }}
+          restore-keys: |
+            elixir-${{ runner.os }}-${{ runner.arch }}-1.20.4-otp-29.0.6-
+
+      - name: Compile
+        run: |
+          echo "compile $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew $GRADLE_FLAGS testClasses
+
+      - name: Prepare test sandbox
+        run: |
+          echo "sandbox $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew $GRADLE_FLAGS prepareTestSandbox
+
+      - name: Build quoter
+        run: |
+          echo "quoter $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew $GRADLE_FLAGS releaseQuoter
+
+      - name: Resolve corpus cache
+        id: corpus-cache
+        run: |
+          echo "corpusCachePaths $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew $GRADLE_FLAGS -q elixirParsingCorpusCachePaths --github-output="$GITHUB_OUTPUT"
+          echo "restoreCorpusCache $(date +%s)" >> "$PROBE_DIR/phases.txt"
+
+      - name: Restore corpus cache
+        id: restore-corpus-cache
+        if: steps.corpus-cache.outputs.paths != ''
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.corpus-cache.outputs.paths }}
+          key: corpus-${{ runner.os }}-${{ steps.corpus-cache.outputs.key }}
+
+      - name: Download corpus
+        run: |
+          echo "corpus $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew $GRADLE_FLAGS elixirParsingCorpus
+
+      # Nothing in check compiles Kotlin, so the daemon only holds memory from here on.
+      - name: Stop the Kotlin daemon
+        if: matrix.stop-kotlin-daemon
+        shell: pwsh
+        run: |
+          $daemons = @(Get-CimInstance Win32_Process -Filter "Name='java.exe'" | Where-Object CommandLine -match 'KotlinCompileDaemon')
+          if (-not $daemons) { Write-Host '::warning::No Kotlin daemon was running' }
+          foreach ($d in $daemons) {
+            Write-Host "Stopping Kotlin daemon pid $($d.ProcessId)"
+            Stop-Process -Id $d.ProcessId -Force
+          }
+
+      - name: Run tests
+        continue-on-error: true
+        run: |
+          echo "tests $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew $GRADLE_FLAGS -Dtestlogger.theme=standard check
+
+      - name: Stop Gradle Daemon
+        if: always()
+        run: |
+          echo "stop $(date +%s)" >> "$PROBE_DIR/phases.txt"
+          ./gradlew --stop
+
+      - name: Report cache restores
+        if: always()
+        env:
+          ELIXIR_HIT: ${{ steps.restore-elixir-cache.outputs.cache-hit }}
+          ELIXIR_MATCHED: ${{ steps.restore-elixir-cache.outputs.cache-matched-key }}
+          CORPUS_HIT: ${{ steps.restore-corpus-cache.outputs.cache-hit }}
+        run: |
+          {
+            echo "### Cache restores (${{ matrix.label }})"
+            echo
+            echo "- Elixir quoter cache: cache-hit=${ELIXIR_HIT:-unset}, matched ${ELIXIR_MATCHED:-nothing}"
+            echo "- Corpus cache: cache-hit=${CORPUS_HIT:-unset}"
+            echo
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop sampler and summarize (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType File -Force (Join-Path $env:PROBE_DIR 'stop') | Out-Null
+          Wait-Process -Id $env:SAMPLER_PID -Timeout 30 -ErrorAction SilentlyContinue
+          Stop-Process -Id $env:SAMPLER_PID -ErrorAction SilentlyContinue
+          python .github/runner-perf-probe/summarize_samples.py --samples "$env:PROBE_DIR/samples.csv" --phases "$env:PROBE_DIR/phases.txt" --title "Resource use by phase (${{ matrix.label }})"
+          Get-Content "$env:PROBE_DIR/processes.txt" -ErrorAction SilentlyContinue
+
+      - name: Stop sampler and summarize (Linux)
+        if: always() && runner.os == 'Linux'
+        run: |
+          touch "$PROBE_DIR/stop"
+          timeout 30 tail --pid="$SAMPLER_PID" -f /dev/null || kill "$SAMPLER_PID" 2> /dev/null || true
+          python3 .github/runner-perf-probe/summarize_samples.py --samples "$PROBE_DIR/samples.csv" --phases "$PROBE_DIR/phases.txt" --title "Resource use by phase (${{ matrix.label }})"
+          cat "$PROBE_DIR/processes.txt" || true
+
+      - name: 'Files written to C:'
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: ./.github/runner-perf-probe/c-drive-writes.ps1 -SinceEpoch $env:PROBE_START -OutDir $env:PROBE_DIR
+
+      - name: Size of Gradle transforms and build outputs
+        if: always()
+        run: |
+          py=$(command -v python || command -v python3)
+          "$py" .github/runner-perf-probe/tree_size.py "${GRADLE_USER_HOME:-$HOME/.gradle}/caches/*/transforms" build | tee "$PROBE_DIR/tree-sizes.txt"
+
+      - name: Upload probe data
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ runner.temp }}/probe
+            build/reports/profile
+            **/build/test-results/**/*.xml
+          if-no-files-found: warn
+
+      - name: Report free disk space
+        if: always()
+        run: df -h
