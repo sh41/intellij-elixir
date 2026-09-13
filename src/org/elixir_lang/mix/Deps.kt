@@ -1,5 +1,6 @@
 package org.elixir_lang.mix
 
+import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
@@ -10,7 +11,6 @@ import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Module.KERNEL
 import org.elixir_lang.psi.impl.call.stabBodyChildExpressions
 import org.elixir_lang.psi.impl.childExpressions
-import org.elixir_lang.psi.impl.stripAccessExpression
 
 object Deps {
     fun from(depsListElement: PsiElement, isDependency: Boolean): Sequence<Dep> =
@@ -40,15 +40,21 @@ object Deps {
                     ?.flatMap { fromChildExpression(it, isDependency) }
                     ?: emptySequence()
 
-    private tailrec fun fromChildExpression(childExpression: PsiElement, isDependency: Boolean): Sequence<Dep> =
-            when (childExpression) {
-                is Call -> fromChildExpression(childExpression, isDependency)
-                is ElixirAccessExpression -> fromChildExpression(childExpression.stripAccessExpression(), isDependency)
-                is ElixirTuple -> fromTuple(childExpression, isDependency)
-                else -> {
-                    emptySequence()
-                }
+    private tailrec fun fromChildExpression(childExpression: PsiElement, isDependency: Boolean): Sequence<Dep> {
+        ProgressManager.checkCanceled()
+
+        return when (childExpression) {
+            is Call -> fromChildExpression(childExpression, isDependency)
+            // Not `stripAccessExpression()`: it returns an access expression without exactly one child unchanged, and
+            // this tail call would revisit it forever.
+            is ElixirAccessExpression ->
+                fromChildExpression(childExpression.children.singleOrNull() ?: return emptySequence(), isDependency)
+            is ElixirTuple -> fromTuple(childExpression, isDependency)
+            else -> {
+                emptySequence()
             }
+        }
+    }
 
     private fun fromChildExpression(childExpression: Call, isDependency: Boolean): Sequence<Dep> =
         if (childExpression.isCalling(KERNEL, "if")) {
