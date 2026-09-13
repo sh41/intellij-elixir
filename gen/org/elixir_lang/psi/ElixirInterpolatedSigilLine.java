@@ -39,21 +39,24 @@ public interface ElixirInterpolatedSigilLine extends Interpolated, SigilLine {
 
   boolean isValidHost();
 
+  @RequiresReadLock
   @NotNull OtpErlangObject quote();
 
+  @RequiresReadLock
   @NotNull OtpErlangObject quote(@NotNull OtpErlangObject quotedContent);
 
   @NotNull OtpErlangObject quoteBinary(OtpErlangList metadata, List<OtpErlangObject> argumentList);
 
   @NotNull OtpErlangObject quoteEmpty();
 
+  @RequiresReadLock
   @NotNull OtpErlangObject quoteInterpolation(ElixirInterpolation interpolation);
 
   @NotNull OtpErlangObject quoteLiteral(List<Integer> codePointList);
 
   @NotNull String sigilDelimiter();
 
-  char sigilName();
+  @NotNull String sigilName();
 
   char terminator();
 

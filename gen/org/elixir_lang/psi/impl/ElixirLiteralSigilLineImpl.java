@@ -92,11 +92,13 @@ public class ElixirLiteralSigilLineImpl extends ASTWrapperPsiElement implements 
   }
 
   @Override
+  @RequiresReadLock
   public @NotNull OtpErlangObject quote() {
     return ElixirPsiImplUtil.quote(this);
   }
 
   @Override
+  @RequiresReadLock
   public @NotNull OtpErlangObject quote(@NotNull OtpErlangObject quotedContent) {
     return ElixirPsiImplUtil.quote(this, quotedContent);
   }
@@ -112,6 +114,7 @@ public class ElixirLiteralSigilLineImpl extends ASTWrapperPsiElement implements 
   }
 
   @Override
+  @RequiresReadLock
   public @NotNull OtpErlangObject quoteInterpolation(ElixirInterpolation interpolation) {
     return ElixirPsiImplUtil.quoteInterpolation(this, interpolation);
   }
@@ -127,7 +130,7 @@ public class ElixirLiteralSigilLineImpl extends ASTWrapperPsiElement implements 
   }
 
   @Override
-  public char sigilName() {
+  public @NotNull String sigilName() {
     return ElixirPsiImplUtil.sigilName(this);
   }
 
