@@ -27,32 +27,35 @@ var DEFAULT_MINIMUM_WAIT = 0.seconds
  */
 
 /**
- * Enters text into a combo box, ensuring the editor is ready before typing.
+ * Enters [text] into a combo box, through the combo box's own editor.
  *
- * This helper handles the common pattern of interacting with editable combo boxes:
- * 1. Wait for the combo box to be present
- * 2. Set focus explicitly on the combo box
- * 3. Wait a brief moment for the internal editor to initialize
- * 4. Enter the text
+ * A combo box does not own focus itself - its internal editor does - and that editor needs a moment after
+ * `setFocus()` before it accepts input; without the wait the first characters are lost.
  *
- * This avoids the issue where text entry begins before the combo box editor is
- * fully initialized, which causes the first characters to be lost.
- *
- * Note: The combo box component itself doesn't own focus - its internal editor does.
- * After setFocus(), the editor needs a brief initialization period.
- *
- * @receiver JComboBoxUiComponent The combo box to interact with
- * @param text The text to enter into the combo box
  * @param editorInitDelayMs Milliseconds to wait for editor initialization (default: 300ms)
  */
 fun JComboBoxUiComponent.enterTextWithFocus(text: String, editorInitDelayMs: Long = 300) {
     waitUntilReady()
     setFocus()
-
-    // Brief wait for the internal editor component to initialize after receiving focus
-    // Prevents weird typing issues
     Thread.sleep(editorInitDelayMs)
     enterText(text)
+}
+
+/**
+ * Focuses any component and types [text] as real key events.
+ *
+ * For a plain text field, which has no editor fixture to enter text through. Assigning `JTextFieldUI.text` instead
+ * calls `setText` on the EDT, which does not drive the listeners a file chooser's path field uses to navigate its
+ * tree - and `FileChooserDialogImpl.doOKAction` takes its result from that tree, so OK would accept whatever was
+ * selected before. Typing drives them.
+ *
+ * @param editorInitDelayMs Milliseconds to wait after focusing before typing (default: 300ms)
+ */
+fun UiComponent.enterTextWithFocus(text: String, editorInitDelayMs: Long = 300) {
+    waitUntilReady()
+    setFocus()
+    Thread.sleep(editorInitDelayMs)
+    keyboard { typeText(text) }
 }
 
 /**

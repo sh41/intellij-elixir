@@ -4,7 +4,6 @@ import com.intellij.driver.sdk.step
 import com.intellij.ide.starter.buildTool.GradleBuildTool
 import com.intellij.ide.starter.ci.CIServer
 import com.intellij.ide.starter.ci.NoCIServer
-import com.intellij.ide.starter.community.model.BuildType
 import com.intellij.ide.starter.di.di
 import com.intellij.ide.starter.ide.IDETestContext
 import com.intellij.ide.starter.ide.IdeProductProvider
@@ -20,6 +19,7 @@ import org.junit.jupiter.api.fail
 import org.kodein.di.DI
 import org.kodein.di.bindSingleton
 import java.nio.file.Paths
+import kotlin.io.path.deleteIfExists
 
 /**
  * Custom GlobalPaths implementation that points to the project's build directory.
@@ -155,13 +155,10 @@ object IdeTestContext {
     ): IDETestContext =
         step("Setup test context for $testName (${ideProduct.productCode})") {
 
-            // Create test case with the specified IDE product and version
-            val testCase = TestCase(
-                ideProduct.copy(
-                    version = System.getProperty("uiPlatformBuildVersion"),
-                    buildType = BuildType.RELEASE.type
-                ), NoProject
-            )
+            // The latest EAP rather than a pinned release: an EAP runs without a paid licence, which a release
+            // build does not, and `PublicIdeDownloader` refuses an EAP more than 30 days old - so pinning a
+            // version would expire. Clearing version and build number selects the newest EAP.
+            val testCase = TestCase(ideProduct, NoProject).useEAP()
 
             Starter.newContext(testName = testName, testCase = testCase).apply {
                 // Install the plugin that was built by the buildPlugin task
@@ -225,6 +222,13 @@ object IdeTestContext {
                     else -> {} // FreeBSD / Other fall through to statisy linter but unsupported
                 }
 
-            }.addProjectToTrustedLocations()
+            }.addProjectToTrustedLocations().apply {
+                // The starter wipes the system dir between runs but not the config dir, and the SDK table lives
+                // there - so without this each run starts with every SDK its predecessors registered, and adding
+                // one appends a duplicate. Two Erlang SDKs also stop the Elixir SDK's create UI being silent: it
+                // prompts to choose between them. Only the table is removed; the rest of the config is what keeps
+                // the run non-interactive.
+                paths.configDir.resolve("options/jdk.table.xml").deleteIfExists()
+            }
         }
 }
