@@ -26,7 +26,9 @@ class Injector : MultiHostInjector {
 
     private fun getLanguagesToInjectInQuote(registrar: MultiHostRegistrar, documentation: PsiElement) {
         when (documentation) {
-            is HeredocLiteral -> {
+            // The walk from the attribute also reaches the string starting `@doc "text" <> "more"`, which the platform
+            // refuses as a host
+            is HeredocLiteral -> if (documentation.isValidHost) {
                 injectMarkdownInQuote(registrar, documentation)
                 injectElixirInCodeBlocksInQuote(registrar, documentation)
             }
@@ -57,7 +59,7 @@ class Injector : MultiHostInjector {
             is ElixirIdentifier,
             is ElixirAtomKeyword -> Unit
 
-            is ElixirLine -> injectMarkdownInQuote(registrar, documentation)
+            is ElixirLine -> if (documentation.isValidHost) injectMarkdownInQuote(registrar, documentation)
             // `deprecated:` is the one metadata key whose value is prose; any other key is data
             is QuotableKeywordPair -> if (documentation.keywordKey.text == "deprecated") {
                 getLanguagesToInjectInQuote(registrar, documentation.keywordValue)
