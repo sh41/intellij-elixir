@@ -88,8 +88,8 @@
   - **`.heex` files are now recognized as HEEx**, with dedicated syntax highlighting for `{@assigns}`/
     `{expressions}`, `<% %>`/`<%= %>` tags, and `<%!-- ... --%>` HEEx comments.
   - **`~H` sigils now use the same HEEx language as `.heex` files**, with separate HTML and Elixir
-    PSI roots, instead of being treated as plain HTML text. Opt-in via Settings → Languages &
-    Frameworks → Elixir → Experimental → "Enable ~H Sigil HEEx language injection".
+    PSI roots, instead of being treated as plain HTML text. Opt-in via Settings -> Languages &
+    Frameworks -> Elixir -> Experimental -> "Enable ~H Sigil HEEx language injection".
   - **`<.component>` and `<Module.component>` tags now resolve** to their `def`/`defp` definition -
     local components, components brought in via an explicit `import`, and components brought in via
     `use MyAppWeb, :html`.
@@ -102,6 +102,8 @@
 
 ### Bug Fixes
 
+- [#4132](https://github.com/intellij-elixir/intellij-elixir/pull/4132) [@sh41](https://github.com/sh41)
+  - **Opening the Elixir SDK settings no longer reports a slow operation on the EDT.** Fixes [#4130](https://github.com/intellij-elixir/intellij-elixir/issues/4130).
 - [#4124](https://github.com/intellij-elixir/intellij-elixir/pull/4124) [@sh41](https://github.com/sh41)
   - **Parameter hints and completion show the parameters of functions defined in a `.beam`.** Fixes [#4048](https://github.com/intellij-elixir/intellij-elixir/issues/4048).
 - [#4121](https://github.com/intellij-elixir/intellij-elixir/pull/4121) [@sh41](https://github.com/sh41)
@@ -605,10 +607,10 @@
   - **Decompiled BEAM files now show real `@type`/`@typep`/`@opaque` definitions** instead of collapsing them all to `term()`. For example, Erlang's `:queue` now decompiles its opaque type with its real parameters and body.
   - **Map comprehension generators (`m_generate`, OTP 26+) in decompiled code now render as a proper `{key, value} <- map` pattern** instead of an unparseable expression.
 - [#3873](https://github.com/intellij-elixir/intellij-elixir/pull/3873) - [@sh41](https://github.com/sh41)
-  - **Small IDE (RubyMine, PyCharm, etc.) users can now configure Elixir SDKs from mise.** Tool manager support -- including the Settings → Elixir → Tool Managers opt-in page -- is now available in small IDEs, not just IntelliJ IDEA. When mise has an Elixir installed for a module, a **"Configure from mise"** button appears on the "SDK is not defined" editor banner and next to that module's SDK selector in Settings → Elixir. One click creates the Elixir and Erlang SDKs and selects them for that module.
-  - **Settings → Elixir now guides SDK setup.** The page explains that SDKs are added on the SDKs / Internal Erlang SDKs child pages and links directly to them. Each module's SDK selector shows a live status line (resolved Elixir and Erlang SDK names, or what is wrong -- no SDK, invalid SDK, missing Erlang SDK), matching the status bar widget's wording. In small IDEs the page now lists **all** modules, including projects originally created in IntelliJ IDEA, which previously had no way to pick a per-module SDK in small IDEs.
+  - **Small IDE (RubyMine, PyCharm, etc.) users can now configure Elixir SDKs from mise.** Tool manager support -- including the Settings -> Elixir -> Tool Managers opt-in page -- is now available in small IDEs, not just IntelliJ IDEA. When mise has an Elixir installed for a module, a **"Configure from mise"** button appears on the "SDK is not defined" editor banner and next to that module's SDK selector in Settings -> Elixir. One click creates the Elixir and Erlang SDKs and selects them for that module.
+  - **Settings -> Elixir now guides SDK setup.** The page explains that SDKs are added on the SDKs / Internal Erlang SDKs child pages and links directly to them. Each module's SDK selector shows a live status line (resolved Elixir and Erlang SDK names, or what is wrong -- no SDK, invalid SDK, missing Erlang SDK), matching the status bar widget's wording. In small IDEs the page now lists **all** modules, including projects originally created in IntelliJ IDEA, which previously had no way to pick a per-module SDK in small IDEs.
 - [#3856](https://github.com/intellij-elixir/intellij-elixir/pull/3856) - [@sh41](https://github.com/sh41)
-  - **Mise users: the plugin now watches your mise config files and re-detects SDKs automatically.** New opt-in per-project settings page (Settings → Elixir → Tool Managers) controls which tool managers are active. Running `mise trust` or editing `.mise.toml` triggers a re-scan without restarting the IDE. Errors like "untrusted config" are now shown in notifications instead of silently ignored.
+  - **Mise users: the plugin now watches your mise config files and re-detects SDKs automatically.** New opt-in per-project settings page (Settings -> Elixir -> Tool Managers) controls which tool managers are active. Running `mise trust` or editing `.mise.toml` triggers a re-scan without restarting the IDE. Errors like "untrusted config" are now shown in notifications instead of silently ignored.
   - **SDK setup on project open is more reliable.** The initial SDK notification scan now waits for the IDE's internal project model to finish loading, preventing a race where newly registered SDKs could disappear moments after being added.
 - [#3846](https://github.com/intellij-elixir/intellij-elixir/pull/3846) - [@sh41](https://github.com/sh41)
   - **You'll now be warned if your Elixir SDK was compiled against a different OTP version than your configured Erlang SDK.** Warnings appear in Project Structure (Additional Data panel), the status bar widget balloon, and the "Refresh All Elixir SDK Paths" summary. You can suppress the warning per-SDK if the mismatch is intentional.
@@ -620,7 +622,7 @@
   - **Run/Debug gutter icons now work in WSL-hosted projects.** Icons indicating test status also propagate from individual `test`/`describe` blocks up to the enclosing `describe` and `defmodule`, so you can see the status of the entire group from the gutter. The plugin reads simple `test_load_filters`/`test_paths` from `mix.exs` for correct test file detection.
 - [#3858](https://github.com/intellij-elixir/intellij-elixir/pull/3858) - [@sh41](https://github.com/sh41)
   - **Autocomplete now includes functions from BEAM-only (Erlang) dependencies.** Decompiled exported functions appear in unqualified completion with `/arity` tail text and a proper icon.
-  - **BEAM viewer improvement (View → Tool Windows → BEAM Viewer):** the StrT (string table) tab now shows individual strings with their lengths and auto-sizes columns.
+  - **BEAM viewer improvement (View -> Tool Windows -> BEAM Viewer):** the StrT (string table) tab now shows individual strings with their lengths and auto-sizes columns.
 - [#3852](https://github.com/intellij-elixir/intellij-elixir/pull/3852) - [@sh41](https://github.com/sh41)
   - **Fewer "unknown AST node" warnings when decompiling OTP 26+ BEAM files.** Map comprehension nodes (`m_generate`, `mc`) introduced in OTP 26 are now decompiled correctly.
   - Elixir settings consolidated -- renamed "Experimental Settings" to "Elixir Settings" and moved all settings into the top-level Elixir configurable (no more separate child page).
@@ -637,8 +639,8 @@
 
 - [#3873](https://github.com/intellij-elixir/intellij-elixir/pull/3873) - [@sh41](https://github.com/sh41)
   - **The "Setup Elixir Module SDK" / "Setup Elixir Facet SDK" editor banner links now work in small IDEs.** They previously called a Project Structure API that is a silent no-op in RubyMine and other small IDEs; they now open the Elixir SDK settings.
-  - **Settings → Elixir → SDKs / Internal Erlang SDKs no longer show an empty list** when SDKs exist. The shared SDK model was initialised without a project, which loads nothing from the SDK table.
-  - **Removing an SDK in Settings → Elixir → SDKs no longer throws** and the removed SDK no longer lingers as a "ghost" entry in the per-module SDK chooser.
+  - **Settings -> Elixir -> SDKs / Internal Erlang SDKs no longer show an empty list** when SDKs exist. The shared SDK model was initialised without a project, which loads nothing from the SDK table.
+  - **Removing an SDK in Settings -> Elixir -> SDKs no longer throws** and the removed SDK no longer lingers as a "ghost" entry in the per-module SDK chooser.
   - **SDKs registered outside the settings dialog (e.g. via "Configure from mise") now appear in Settings without restarting the IDE.** The settings model refreshes when the SDK table changes.
 - [#3849](https://github.com/intellij-elixir/intellij-elixir/pull/3849) - [@sh41](https://github.com/sh41)
   - **Ctrl-click on `div`, `rem`, `is_nil` etc. now navigates to Elixir source instead of landing on a `.beam` file.** The resolver now sorts source results before decompiled ones.
@@ -646,7 +648,7 @@
   - **Go-to-Declaration is less noisy in multi-module projects.** Resolver scope narrowed from the entire project to the current module's dependencies, reducing false matches from unrelated modules and/or SDKs.
   - **Navigation works from VCS diff views.** Synthetic files (e.g. the diff editor) now resolve to their real on-disk counterparts.
 - [#3850](https://github.com/intellij-elixir/intellij-elixir/pull/3850) - [@sh41](https://github.com/sh41)
-  - **Go-to-Declaration on the `String` module (and other modules with `\u{…}` in their docs) now works.** Previously the lexer mishandled Unicode escape sequences inside `~S"""…"""` heredocs, corrupting the parse tree for the rest of the file and causing navigation to fall through to `.beam`.
+  - **Go-to-Declaration on the `String` module (and other modules with `\u{...}` in their docs) now works.** Previously the lexer mishandled Unicode escape sequences inside `~S"""..."""` heredocs, corrupting the parse tree for the rest of the file and causing navigation to fall through to `.beam`.
 - [#3839](https://github.com/intellij-elixir/intellij-elixir/pull/3839) - [@sh41](https://github.com/sh41)
   - **IDE no longer freezes when dependencies change.** The dependency sync system has been rewritten from a legacy thread-based watcher to a coroutine pipeline. Changing `mix.lock` now re-scans only the affected project root instead of all roots. Notifications show which module is affected.
 - [#3848](https://github.com/intellij-elixir/intellij-elixir/pull/3848) - [@sh41](https://github.com/sh41)
