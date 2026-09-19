@@ -103,7 +103,7 @@
 ### Bug Fixes
 
 - [#4132](https://github.com/intellij-elixir/intellij-elixir/pull/4132) [@sh41](https://github.com/sh41)
-  - **Opening the Elixir SDK settings no longer reports a slow operation on the EDT.** Fixes [#4130](https://github.com/intellij-elixir/intellij-elixir/issues/4130).
+  - **Opening the Elixir SDK or Credo settings no longer reports a slow operation on the EDT.** Fixes [#4130](https://github.com/intellij-elixir/intellij-elixir/issues/4130).
 - [#4124](https://github.com/intellij-elixir/intellij-elixir/pull/4124) [@sh41](https://github.com/sh41)
   - **Parameter hints and completion show the parameters of functions defined in a `.beam`.** Fixes [#4048](https://github.com/intellij-elixir/intellij-elixir/issues/4048).
 - [#4121](https://github.com/intellij-elixir/intellij-elixir/pull/4121) [@sh41](https://github.com/sh41)
