@@ -16,8 +16,11 @@ sourceSets {
     }
 }
 
-// Java level (source/target compatibility, --release, encoding) is configured by the root
-// build script, derived from the target platform (Java 25 for build 262+, otherwise 21).
+// This module runs in IntelliJ's external build process, not the IDE, so main is pinned to
+// jpsJavaLevel (gradle.properties) rather than the root's platform-derived level. Only main:
+// the tests run on the Gradle JVM and use later language features.
+val jpsJavaLevel = property("jpsJavaLevel") as String
+tasks.named<JavaCompile>("compileJava") { options.release.set(jpsJavaLevel.toInt()) }
 
 // Ensuring the necessary tasks are executed before tests
 tasks.test {

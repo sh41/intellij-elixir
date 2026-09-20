@@ -163,7 +163,7 @@ public class ProcessAdapter extends com.intellij.execution.process.ProcessAdapte
     }
 
     private void processMessage(@NotNull BuildMessage.Kind kind) {
-        if (!text.isEmpty()) {
+        if (text.length() > 0) {
             String messageText = text.toString();
             Matcher stackTraceLineMatcher = STACK_TRACE_LINE.matcher(messageText);
             long problemBeginOffset = DEFAULT_PROBLEM_BEGIN_OFFSET;
