@@ -91,6 +91,12 @@ public class ElixirAccessExpressionImpl extends ASTWrapperPsiElement implements 
 
   @Override
   @Nullable
+  public ElixirEmptyParentheses getEmptyParentheses() {
+    return PsiTreeUtil.getChildOfType(this, ElixirEmptyParentheses.class);
+  }
+
+  @Override
+  @Nullable
   public ElixirHeredoc getHeredoc() {
     return PsiTreeUtil.getChildOfType(this, ElixirHeredoc.class);
   }

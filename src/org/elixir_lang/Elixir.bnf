@@ -2034,6 +2034,9 @@ bitString ::= OPENING_BIT
 
 accessExpression ::= captureNumericOperation |
                      anonymousFunction |
+                     // `()` is an empty block, so it stands wherever an expression does: `2 * ()`, `f(())`, `[()]`.
+                     // `elixir_parser.yrl` reaches it from `access_expr` for the same reason.
+                     emptyParentheses |
                      parentheticalStab |
                      numeric |
                      list |

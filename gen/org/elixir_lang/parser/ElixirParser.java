@@ -61,6 +61,9 @@ public class ElixirParser implements PsiParser, LightPsiParser {
   /* ********************************************************** */
   // captureNumericOperation |
   //                      anonymousFunction |
+  //                      // `()` is an empty block, so it stands wherever an expression does: `2 * ()`, `f(())`, `[()]`.
+  //                      // `elixir_parser.yrl` reaches it from `access_expr` for the same reason.
+  //                      emptyParentheses |
   //                      parentheticalStab |
   //                      numeric |
   //                      list |
@@ -84,13 +87,14 @@ public class ElixirParser implements PsiParser, LightPsiParser {
     Marker m = enter_section_(b, l, _NONE_, ACCESS_EXPRESSION, "<access expression>");
     r = captureNumericOperation(b, l + 1);
     if (!r) r = anonymousFunction(b, l + 1);
+    if (!r) r = emptyParentheses(b, l + 1);
     if (!r) r = parentheticalStab(b, l + 1);
     if (!r) r = numeric(b, l + 1);
     if (!r) r = list(b, l + 1);
     if (!r) r = map(b, l + 1);
     if (!r) r = tuple(b, l + 1);
     if (!r) r = bitString(b, l + 1);
-    if (!r) r = accessExpression_8(b, l + 1);
+    if (!r) r = accessExpression_9(b, l + 1);
     if (!r) r = heredoc(b, l + 1);
     if (!r) r = interpolatedSigilLine(b, l + 1);
     if (!r) r = interpolatedSigilHeredoc(b, l + 1);
@@ -106,8 +110,8 @@ public class ElixirParser implements PsiParser, LightPsiParser {
   }
 
   // line notKeywordPairColon
-  private static boolean accessExpression_8(PsiBuilder b, int l) {
-    if (!recursion_guard_(b, l, "accessExpression_8")) return false;
+  private static boolean accessExpression_9(PsiBuilder b, int l) {
+    if (!recursion_guard_(b, l, "accessExpression_9")) return false;
     boolean r;
     Marker m = enter_section_(b);
     r = line(b, l + 1);

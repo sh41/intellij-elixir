@@ -40,6 +40,9 @@ public interface ElixirAccessExpression extends MaybeModuleName, Quotable {
   ElixirDecimalWholeNumber getDecimalWholeNumber();
 
   @Nullable
+  ElixirEmptyParentheses getEmptyParentheses();
+
+  @Nullable
   ElixirHeredoc getHeredoc();
 
   @Nullable
