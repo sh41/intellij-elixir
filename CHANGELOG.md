@@ -108,7 +108,7 @@
 - [#4160](https://github.com/intellij-elixir/intellij-elixir/pull/4160) [@sh41](https://github.com/sh41)
   - **Editing a module with a large `@doc` or `@moduledoc` block no longer freezes the IDE.** Fixes [#2813](https://github.com/intellij-elixir/intellij-elixir/issues/2813).
 - [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
-  - **A reference to `=>` or to the range step operator `//`, as in `&///2`, is now reported, since neither can be referenced.** Refs [#4080](https://github.com/intellij-elixir/intellij-elixir/issues/4080).
+  - **`=>` and the range step operator `//` are now reported where they are referenced, as in `&///2`, or used as a keyword key, as in `[=>: 1]`, since Elixir allows neither.** Refs [#4080](https://github.com/intellij-elixir/intellij-elixir/issues/4080).
 - [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
   - **`()` no longer reports an error where an operand is expected, as in `2 * ()`, `f(())` and `[()]`, which Elixir reads as an empty block.** Refs [#4080](https://github.com/intellij-elixir/intellij-elixir/issues/4080).
 - [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)

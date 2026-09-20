@@ -21,6 +21,7 @@ import org.elixir_lang.psi.ElixirHeredoc
 import org.elixir_lang.psi.ElixirInterpolatedSigilHeredoc
 import org.elixir_lang.psi.ElixirInterpolatedSigilLine
 import org.elixir_lang.psi.ElixirInterpolation
+import org.elixir_lang.psi.ElixirKeywordPair
 import org.elixir_lang.psi.ElixirLine
 import org.elixir_lang.psi.ElixirLiteralSigilHeredoc
 import org.elixir_lang.psi.ElixirLiteralSigilLine
@@ -61,6 +62,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
             is ElixirInterpolatedSigilLine, is ElixirLiteralSigilLine -> cutOffQuote(element)
             is ElixirAtom -> divisionAtom(element) ?: cutOffQuote(element)
             is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation -> operatorReference(element)
+            is ElixirKeywordPair -> unnameableKey(element)
             else -> null
         } ?: return
 
@@ -132,6 +134,25 @@ internal class InvalidConstruct : Annotator, DumbAware {
             }
             else -> null
         }
+    }
+
+    /**
+     * `=>` and the step operator `//` cannot name a keyword key, so Elixir's tokenizer reaches the `:` with nothing
+     * that a key could have been and reports the colon itself. Every other operator, `+` and `..` included, is a key.
+     */
+    private fun unnameableKey(pair: ElixirKeywordPair): Pair<TextRange, String>? {
+        val key = pair.keywordKey
+        val named = when (key.text) {
+            "=>" -> false
+            "//" -> !ElixirLanguageLevelResolver.isAvailable(STEP_OPERATOR, key)
+            else -> true
+        }
+        if (named) return null
+
+        val colon = PsiTreeUtil.nextLeaf(key)?.takeIf { it.node.elementType == ElixirTypes.KEYWORD_PAIR_COLON } ?: return null
+        val contents = pair.containingFile.viewProvider.contents
+
+        return colon.textRange to unexpectedToken(':'.code, column(contents, colon.textRange.startOffset))
     }
 
     private fun anonymousFunctionWithoutClause(anonymousFunction: ElixirAnonymousFunction): Pair<TextRange, String>? {
