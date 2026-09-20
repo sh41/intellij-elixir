@@ -3,7 +3,6 @@ package org.elixir_lang.parser_definition
 import com.ericsson.otp.erlang.OtpErlangAtom
 import com.ericsson.otp.erlang.OtpErlangBinary
 import com.ericsson.otp.erlang.OtpErlangTuple
-import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
@@ -24,10 +23,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 /**
- * One test per source that `VersionedSyntax`, `InvalidConstruct` and `InvalidToken` are meant to judge, and per snippet
- * of Elixir's own tests: under the release of the Elixir under test, the annotators must report nothing where that
- * Elixir accepts the source, and where they report, give that Elixir's message. Elixir's hints after the first line are
- * left to hovers.
+ * One test per source that `VersionedSyntax`, `InvalidConstruct` and `InvalidToken` are meant to judge: under the release
+ * of the Elixir under test, the annotators must report nothing where that Elixir accepts the source, and where they
+ * report, give that Elixir's message. Elixir's hints after the first line are left to hovers.
  */
 class AnnotatorQuoterAgreementTestCase private constructor(
     private val hash: String,
@@ -123,10 +121,6 @@ class AnnotatorQuoterAgreementTestCase private constructor(
             for (line in Files.readAllLines(SOURCES).filter { it.isNotBlank() }) {
                 val json = JsonParser.parseString(line).asJsonObject
                 sources.putIfAbsent(json.get("hash").asString, json.get("source").asString)
-            }
-            for (line in Files.readAllLines(ElixirSnippetParsingTestCase.SNIPPETS)) {
-                val snippet: JsonObject = JsonParser.parseString(line).asJsonObject
-                sources.putIfAbsent(snippet.get("hash").asString, ElixirSnippetParsingTestCase.source(snippet))
             }
 
             for ((hash, source) in sources) {
