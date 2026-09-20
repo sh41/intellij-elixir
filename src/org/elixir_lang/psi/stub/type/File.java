@@ -73,10 +73,16 @@ public class File extends IStubFileElementType<org.elixir_lang.psi.stub.File> {
     protected ASTNode doParseContents(@NotNull ASTNode chameleon, @NotNull PsiElement psi) {
         Project project = psi.getProject();
         Language languageForParser = getLanguageForParser(psi);
-        PsiBuilder builder = PsiBuilderFactory.getInstance().createBuilder(project, chameleon, null, languageForParser, chameleon.getChars());
-        /* Resolved here and not in the ParserDefinition: createParser is handed only the project, and
-           one project can hold modules pointed at different Elixir SDKs. */
+        /* Resolved here and not in the ParserDefinition: createLexer and createParser are handed only the project,
+           and one project can hold modules pointed at different Elixir SDKs. */
         ElixirLanguageLevel languageLevel = ElixirLanguageLevelResolver.languageLevelFor(psi);
+        PsiBuilder builder = PsiBuilderFactory.getInstance().createBuilder(
+                project,
+                chameleon,
+                new org.elixir_lang.ElixirLexer(project, languageLevel),
+                languageForParser,
+                chameleon.getChars()
+        );
         builder.putUserData(ElixirParserUtil.LANGUAGE_LEVEL, languageLevel);
         builder.setTokenTypeRemapper(new WordAfterNumber(languageLevel));
         PsiParser parser = LanguageParserDefinitions.INSTANCE.forLanguage(languageForParser).createParser(project);

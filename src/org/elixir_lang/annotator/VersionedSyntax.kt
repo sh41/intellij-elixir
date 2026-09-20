@@ -76,6 +76,8 @@ internal class VersionedSyntax : Annotator, DumbAware {
     override fun annotate(element: PsiElement, holder: AnnotationHolder) {
         val problem = problem(element) { ElixirLanguageLevelResolver.languageLevelFor(element) } ?: return
         if (Injection.of(element) == Injection.UNCOMPILED) return
+        // Everything past the `**` is unread, so only the `**` itself is reported there.
+        powerStop(element)?.let { if (problem.range.startOffset > it) return }
 
         holder.error(problem.range, problem.message, problem.tooltip)
     }
@@ -100,6 +102,7 @@ internal class VersionedSyntax : Annotator, DumbAware {
             is ElixirQuoteHexadecimalEscapeSequence -> hexadecimalEscape(element, languageLevel)
             is ElixirHeredoc, is ElixirInterpolatedSigilHeredoc, is ElixirLiteralSigilHeredoc ->
                 heredocTerminatorAfterContent(element, languageLevel)
+            is PsiFile -> powerPair(element, languageLevel)
             else -> if (element.firstChild == null) leaf(element, languageLevel) else null
         }
 
@@ -122,9 +125,9 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
     private fun leaf(leaf: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
         when (leaf.node.elementType) {
-            ElixirTypes.POWER_OPERATOR -> power(leaf, languageLevel)
+            ElixirTypes.POWER_OPERATOR -> power(leaf, leaf, languageLevel)
             ElixirTypes.IDENTIFIER_TOKEN ->
-                if (leaf.text == "**") power(leaf, languageLevel) else notNfc(leaf, languageLevel)
+                if (leaf.text == "**") power(leaf, leaf, languageLevel) else notNfc(leaf, languageLevel)
             ElixirTypes.ALIAS_TOKEN -> notNfc(leaf, languageLevel)
             ElixirTypes.ATOM_FRAGMENT -> atomFragment(leaf, languageLevel)
             ElixirTypes.LITERAL_SIGIL_NAME, ElixirTypes.INTERPOLATING_SIGIL_NAME -> sigilName(leaf, languageLevel)
@@ -132,37 +135,77 @@ internal class VersionedSyntax : Annotator, DumbAware {
             else -> null
         }
 
-    /** Before 1.13 Elixir's tokenizer reads `**` as two `*`, so `x.**` is `x.*` followed by `*`. */
-    private fun power(power: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
+    /**
+     * Before 1.13 Elixir's tokenizer reads `**` as two `*`, so `x.**` is `x.*` followed by `*`. [first] and [last] are
+     * the same leaf where one token spells the whole of it, and the two `*` otherwise.
+     */
+    private fun power(first: PsiElement, last: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         if (POWER_OPERATOR.isSufficient(languageLevel())) return null
 
-        val parent = power.parent
-        val token = if (parent is ElixirRelativeIdentifier) {
-            val arguments = PsiTreeUtil.skipWhitespacesForward(parent)
-
-            val parenthesesArguments = PsiTreeUtil.getChildOfType(arguments, ElixirParenthesesArguments::class.java)?.children
-
-            when {
-                parenthesesArguments == null -> tokenAfterPower(parent, languageLevel) ?: return null
-                parenthesesArguments.size > 1 || parenthesesArguments.singleOrNull() is ElixirKeywords -> "')'"
-                else -> return null
-            }
+        val range = TextRange(first.textRange.startOffset, last.textRange.endOffset)
+        // Broken source leaves the leaves loose, so the dot before it says this names a function as well as the PSI.
+        val named = first.parent is ElixirRelativeIdentifier ||
+            previousCodeLeaf(first)?.node?.elementType == ElixirTypes.DOT_OPERATOR
+        val token = if (named) {
+            parenthesesToken(last) ?: tokenAfterPower(last, languageLevel) ?: return null
         } else {
             "'*'"
         }
 
-        if (endsWithBackslash(power)) return Problem(power.textRange, INVALID_ESCAPE_AT_END)
+        if (endsWithBackslash(last)) return Problem(range, INVALID_ESCAPE_AT_END)
 
-        return Problem(power.textRange, syntaxErrorBefore(token))
+        return Problem(range, syntaxErrorBefore(token))
+    }
+
+    /**
+     * The first `**` a release before 1.13 cannot read, which is two `*` there. Reported from the file, since Elixir's
+     * tokenizer stops at the first one it cannot read wherever it sits, and the two `*` can land in different children.
+     */
+    /** Where [powerPair] reports, for the callers that must stay silent past it. */
+    internal fun powerStart(file: PsiElement, languageLevel: () -> ElixirLanguageLevel): Int? =
+        powerPair(file, languageLevel)?.range?.startOffset
+
+    private fun powerPair(file: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
+        if (POWER_OPERATOR.isSufficient(languageLevel())) return null
+
+        return starPairs(file).firstNotNullOfOrNull { (first, second) -> power(first, second, languageLevel) }
+    }
+
+    /**
+     * Elixir names the `)` where an argument list follows `x.**`, since it reads the parentheses as an operand and a
+     * keyword list or a second argument cannot be one. A single expression can, so there is nothing to report.
+     */
+    private fun parenthesesToken(power: PsiElement): String? {
+        val opening = nextCodeLeaf(power)?.takeIf { it.node.elementType == ElixirTypes.OPENING_PARENTHESIS } ?: return null
+        var depth = 0
+        // A comma or keyword-pair colon only ends a single expression at parentheses-depth 1; inside a list, tuple
+        // or map nested there it is part of that literal, not a second argument. `%{}` opens with the same token
+        // as `{}`, so no separate count is needed for it.
+        var bracketDepth = 0
+
+        for (leaf in generateSequence(opening) { PsiTreeUtil.nextLeaf(it) }) {
+            when (leaf.node.elementType) {
+                ElixirTypes.OPENING_PARENTHESIS -> depth++
+                ElixirTypes.CLOSING_PARENTHESIS -> if (--depth == 0) return null
+                ElixirTypes.OPENING_BRACKET, ElixirTypes.OPENING_CURLY -> bracketDepth++
+                ElixirTypes.CLOSING_BRACKET, ElixirTypes.CLOSING_CURLY -> bracketDepth--
+                ElixirTypes.COMMA, ElixirTypes.KEYWORD_PAIR_COLON -> if (depth == 1 && bracketDepth == 0) return "')'"
+                else -> {}
+            }
+        }
+
+        return null
     }
 
     /** The token Elixir names when the `*` after `x.*` has no operand, or null where that token is not known. */
-    private fun tokenAfterPower(identifier: PsiElement, languageLevel: () -> ElixirLanguageLevel): String? {
-        val next = nextCodeLeaf(identifier)
+    private fun tokenAfterPower(power: PsiElement, languageLevel: () -> ElixirLanguageLevel): String? {
+        val next = nextCodeLeaf(power)
         if (next == null || isFinalBackslash(next) || next.parent is ElixirInterpolation) return ""
 
         val key = PsiTreeUtil.getParentOfType(next, ElixirKeywordKey::class.java)
-        if (key != null) return keywordKeyName(key, languageLevel)
+        if (key != null) return keywordKeyName(key.text, key.interpolated(), languageLevel)
+        // The pair is unparsed when the `**` broke the expression holding it, so read the key off the leaves.
+        looseKeywordKey(next)?.let { return keywordKeyName(it, "#{" in it, languageLevel) }
 
         val type = when (next.node.elementType) {
             // The lexer makes some operators before `/` identifiers.
@@ -175,12 +218,17 @@ internal class VersionedSyntax : Annotator, DumbAware {
 
         // Elixir's tokenizer first reports a closer or `end` without an opener, and a `do` without an `end`.
         if ((type in CLOSERS || type == ElixirTypes.END) && (next.parent is PsiErrorElement || next.parent is PsiFile)) return null
-        if (type == ElixirTypes.DO && next.parent?.node?.findChildByType(ElixirTypes.END) == null) return null
+        if (type == ElixirTypes.DO && !hasEndAfter(next)) return null
         // An operator before `/` on the same line is a reference, which starts the operand.
         if (type in OPERATORS && isDivisionOnSameLine(next)) return null
 
         return if (type in ENDS_OPERAND) erlangAtom(next.text, languageLevel()) else null
     }
+
+    /** Whether a `do` is closed. Broken source leaves the `end` outside the block, so the whole file is searched. */
+    private fun hasEndAfter(doLeaf: PsiElement): Boolean =
+        generateSequence(PsiTreeUtil.nextLeaf(doLeaf)) { PsiTreeUtil.nextLeaf(it) }
+            .any { it.node.elementType == ElixirTypes.END }
 
     private fun isBeforeDivision(range: PsiElement): Boolean {
         val following = generateSequence(PsiTreeUtil.nextLeaf(range)) { PsiTreeUtil.nextLeaf(it) }
@@ -206,11 +254,9 @@ internal class VersionedSyntax : Annotator, DumbAware {
             gap.all { space -> withoutLineContinuations(space.text).all { it == ' ' || it == '\t' } }
     }
 
-    private fun keywordKeyName(key: ElixirKeywordKey, languageLevel: () -> ElixirLanguageLevel): String? {
-        val text = key.text
-
+    private fun keywordKeyName(text: String, interpolated: Boolean, languageLevel: () -> ElixirLanguageLevel): String? {
         return when {
-            text.first() == '\"' || text.first() == '\'' -> quotedKeyName(key)
+            text.first() == '\"' || text.first() == '\'' -> quotedKeyName(text, interpolated)
             // 1.11 accepts a `..//` key.
             text == "..//" ->
                 if (languageLevel().let { STEP_OPERATOR.isSufficient(it) && !POWER_OPERATOR.isSufficient(it) }) {
@@ -224,12 +270,44 @@ internal class VersionedSyntax : Annotator, DumbAware {
     }
 
     /** The binary a quoted key tokenizes to, as Erlang prints it. */
-    private fun quotedKeyName(key: ElixirKeywordKey): String? {
-        val text = key.text
+    private fun quotedKeyName(text: String, interpolated: Boolean): String? {
         if (text.length < 2 || text.last() != text.first()) return null
-        if (PsiTreeUtil.findChildOfType(key, ElixirInterpolation::class.java) != null) return null
+        if (interpolated) return null
 
         return unescape(text.substring(1, text.length - 1))?.let { "[${erlangBinary(it)}]" }
+    }
+
+    private fun ElixirKeywordKey.interpolated(): Boolean =
+        PsiTreeUtil.findChildOfType(this, ElixirInterpolation::class.java) != null
+
+    /**
+     * The text of the key [next] starts, or null where nothing before the next separator closes one with a `:`.
+     *
+     * A `:` only ends [next]'s own key at nesting depth 0; one nested inside a bracket, brace or parenthesis
+     * belongs to something else entirely, as in `x.**(%{a: 1})`'s `a:`, and is skipped rather than matched or
+     * stopped on - the same balanced-pair counting also carries `looseKeywordKey` through a quoted key's own
+     * internal escape braces, like `"a\u{41}"`'s, since those are the same token types. A comma or a real `EOL`
+     * token (not whitespace) at depth 0 ends [next] with no key found, since neither can be part of one - as in
+     * `[a: x.**y,b: 1]`'s `,` or an unindented `x.**y` followed by `b: 1` on the next line.
+     */
+    private fun looseKeywordKey(next: PsiElement): String? {
+        val text = StringBuilder()
+        var depth = 0
+
+        for (leaf in generateSequence(next) { PsiTreeUtil.nextLeaf(it) }) {
+            when (leaf.node.elementType) {
+                ElixirTypes.OPENING_PARENTHESIS, ElixirTypes.OPENING_BRACKET, ElixirTypes.OPENING_CURLY -> depth++
+                ElixirTypes.CLOSING_PARENTHESIS, ElixirTypes.CLOSING_BRACKET, ElixirTypes.CLOSING_CURLY -> depth--
+                ElixirTypes.KEYWORD_PAIR_COLON -> if (depth == 0) return text.toString().takeIf { it.isNotEmpty() }
+                ElixirTypes.COMMA, ElixirTypes.EOL -> if (depth == 0) return null
+                else -> {}
+            }
+            if (leaf is PsiWhiteSpace) return null
+
+            text.append(leaf.text)
+        }
+
+        return null
     }
 
     private fun atomFragment(fragment: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? =
@@ -431,7 +509,11 @@ internal class VersionedSyntax : Annotator, DumbAware {
      */
     private fun operatorArity(operation: PsiElement, languageLevel: () -> ElixirLanguageLevel): Problem? {
         val operator = operation.children.firstOrNull { it is ElixirMultiplicationInfixOperator && it.text == "/" } ?: return null
-        val operand = operation.firstChild as? UnqualifiedNoArgumentsCall<*> ?: return null
+        // Not the operation's first child: `**` splits before 1.13, so the name can sit inside a nested operation.
+        val operand = PsiTreeUtil
+            .getParentOfType(previousCodeLeaf(operator), UnqualifiedNoArgumentsCall::class.java, false)
+            ?.takeIf { it.textRange.endOffset <= operator.textRange.startOffset }
+            ?: return null
         val name = operand.text
         if (name == "..." || name in SAME_ON_EVERY_RELEASE || (name.any { it.isLetterOrDigit() || it == '_' } && name !in WORD_OPERATORS)) {
             return null

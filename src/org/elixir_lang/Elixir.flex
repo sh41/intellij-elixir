@@ -4,6 +4,8 @@ import com.intellij.lexer.FlexLexer;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.TokenType;
 import com.intellij.psi.tree.IElementType;
+import org.elixir_lang.language_level.ElixirLanguageFeature;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 import org.elixir_lang.psi.ElixirTypes;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,6 +24,7 @@ import org.jetbrains.annotations.Nullable;
 %{
   @Nullable
   private Project project = null;
+  private ElixirLanguageLevel languageLevel = ElixirLanguageLevel.getFALLBACK();
   private org.elixir_lang.lexer.Stack stack = new org.elixir_lang.lexer.Stack();
 
   public int stackSize() {
@@ -123,6 +126,18 @@ import org.jetbrains.annotations.Nullable;
 
   public void setProject(@Nullable Project project) {
     this.project = project;
+  }
+
+  public void setLanguageLevel(@Nullable ElixirLanguageLevel languageLevel) {
+    this.languageLevel = languageLevel == null ? ElixirLanguageLevel.getFALLBACK() : languageLevel;
+  }
+
+  /**
+   * Whether `**` is one operator here. Before 1.13 Elixir's tokenizer reads two `*`, so `x.** 1` is the remote call
+   * `x.*` multiplied by 1, and `x.**(1)` multiplied by a parenthesised 1 rather than called with it.
+   */
+  private boolean powerOperator() {
+    return ElixirLanguageFeature.POWER_OPERATOR.isSufficient(languageLevel);
   }
 %}
 
@@ -852,8 +867,12 @@ EOL_INSENSITIVE = {AND_SYMBOL_OPERATOR} |
   {MATCH_OPERATOR}                           { pushAndBegin(KEYWORD_PAIR_OR_MULTILINE_WHITE_SPACE_MAYBE);
                                                return ElixirTypes.MATCH_OPERATOR; }
   // Must be before MULTIPLICATION_OPERATOR (*) as it is a prefix of POWER_OPERATOR (**)
-  {POWER_OPERATOR}                          { pushAndBegin(KEYWORD_PAIR_OR_MULTILINE_WHITE_SPACE_MAYBE);
-                                              return ElixirTypes.POWER_OPERATOR; }
+  {POWER_OPERATOR}                           { pushAndBegin(KEYWORD_PAIR_OR_MULTILINE_WHITE_SPACE_MAYBE);
+                                               if (powerOperator()) {
+                                                 return ElixirTypes.POWER_OPERATOR;
+                                               }
+                                               yypushback(1);
+                                               return ElixirTypes.MULTIPLICATION_OPERATOR; }
   {MULTIPLICATION_OPERATOR}                  { pushAndBegin(KEYWORD_PAIR_OR_MULTILINE_WHITE_SPACE_MAYBE);
                                                return ElixirTypes.MULTIPLICATION_OPERATOR; }
   // Must be before NEGATE_OPERATOR (-) or NUMBER_OR_BADARITH_OPERATOR (+)
@@ -1069,9 +1088,16 @@ EOL_INSENSITIVE = {AND_SYMBOL_OPERATOR} |
                                                       return ElixirTypes.MATCH_OPERATOR; }
   {MINUS_OPERATOR}                                  { yybegin(CALL_MAYBE);
                                                       return ElixirTypes.MINUS_OPERATOR; }
-  // Must be before MULTIPLICATION_OPERATOR (*) as it is a prefix of (**)
-  {POWER_OPERATOR}                                  { yybegin(CALL_MAYBE);
-                                                      return ElixirTypes.POWER_OPERATOR; }
+  // Must be before MULTIPLICATION_OPERATOR (*) as it is a prefix of POWER_OPERATOR (**)
+  {POWER_OPERATOR}                                  { if (powerOperator()) {
+                                                        // `**` names the function, so it is followed like any other relative identifier.
+                                                        yybegin(AFTER_RELATIVE_IDENTIFIER);
+                                                        return ElixirTypes.POWER_OPERATOR;
+                                                      }
+                                                      // Only `x.*` is the call; the second `*` is infix, so it is lexed in the state before the dot.
+                                                      yybegin(CALL_MAYBE);
+                                                      yypushback(1);
+                                                      return ElixirTypes.MULTIPLICATION_OPERATOR; }
   {MULTIPLICATION_OPERATOR}                         { yybegin(CALL_MAYBE);
                                                       return ElixirTypes.MULTIPLICATION_OPERATOR; }
   {NIL}                                             { yybegin(CALL_MAYBE);

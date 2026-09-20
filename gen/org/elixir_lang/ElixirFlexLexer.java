@@ -7,6 +7,8 @@ import com.intellij.lexer.FlexLexer;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.TokenType;
 import com.intellij.psi.tree.IElementType;
+import org.elixir_lang.language_level.ElixirLanguageFeature;
+import org.elixir_lang.language_level.ElixirLanguageLevel;
 import org.elixir_lang.psi.ElixirTypes;
 import org.jetbrains.annotations.Nullable;
 
@@ -1419,6 +1421,7 @@ public class ElixirFlexLexer implements FlexLexer {
   /* user code: */
   @Nullable
   private Project project = null;
+  private ElixirLanguageLevel languageLevel = ElixirLanguageLevel.getFALLBACK();
   private org.elixir_lang.lexer.Stack stack = new org.elixir_lang.lexer.Stack();
 
   public int stackSize() {
@@ -1520,6 +1523,18 @@ public class ElixirFlexLexer implements FlexLexer {
 
   public void setProject(@Nullable Project project) {
     this.project = project;
+  }
+
+  public void setLanguageLevel(@Nullable ElixirLanguageLevel languageLevel) {
+    this.languageLevel = languageLevel == null ? ElixirLanguageLevel.getFALLBACK() : languageLevel;
+  }
+
+  /**
+   * Whether `**` is one operator here. Before 1.13 Elixir's tokenizer reads two `*`, so `x.** 1` is the remote call
+   * `x.*` multiplied by 1, and `x.**(1)` multiplied by a parenthesised 1 rather than called with it.
+   */
+  private boolean powerOperator() {
+    return ElixirLanguageFeature.POWER_OPERATOR.isSufficient(languageLevel);
   }
 
 
@@ -2511,7 +2526,11 @@ public class ElixirFlexLexer implements FlexLexer {
           case 301: break;
           case 105:
             { pushAndBegin(KEYWORD_PAIR_OR_MULTILINE_WHITE_SPACE_MAYBE);
-                                              return ElixirTypes.POWER_OPERATOR;
+                                               if (powerOperator()) {
+                                                 return ElixirTypes.POWER_OPERATOR;
+                                               }
+                                               yypushback(1);
+                                               return ElixirTypes.MULTIPLICATION_OPERATOR;
             }
           // fall through
           case 302: break;
@@ -2701,8 +2720,15 @@ public class ElixirFlexLexer implements FlexLexer {
           // fall through
           case 329: break;
           case 133:
-            { yybegin(CALL_MAYBE);
-                                                      return ElixirTypes.POWER_OPERATOR;
+            { if (powerOperator()) {
+                                                        // `**` names the function, so it is followed like any other relative identifier.
+                                                        yybegin(AFTER_RELATIVE_IDENTIFIER);
+                                                        return ElixirTypes.POWER_OPERATOR;
+                                                      }
+                                                      // Only `x.*` is the call; the second `*` is infix, so it is lexed in the state before the dot.
+                                                      yybegin(CALL_MAYBE);
+                                                      yypushback(1);
+                                                      return ElixirTypes.MULTIPLICATION_OPERATOR;
             }
           // fall through
           case 330: break;
