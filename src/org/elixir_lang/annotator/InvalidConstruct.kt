@@ -41,6 +41,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_OPENING_ERRO
 import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_TERMINATOR_AFTER_CONTENT_IS_CONTENT
 import org.elixir_lang.language_level.ElixirLanguageFeature.HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPED_QUOTED_REMOTE_CALL_NAME
+import org.elixir_lang.language_level.ElixirLanguageFeature.STEP_OPERATOR
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
@@ -106,20 +107,24 @@ internal class InvalidConstruct : Annotator, DumbAware {
     }
 
     /**
-     * Elixir rejects `=>` before `/` on every release, and `//` when a newline or line continuation comes before the `/`.
-     * Elsewhere, `=>` in a map is the association and `//` differs by release.
+     * Neither `=>` nor the step operator `//` can be referenced, so the `/` giving the arity has nothing to take one
+     * of. Elsewhere `=>` is a map's association. Before 1.12 `//` is two `/` rather than an operator, and only a
+     * newline between them still fails, since `/` then has no left operand on the new line.
      */
     private fun operatorReference(operation: PsiElement): Pair<TextRange, String>? {
         val operator = operation.children.firstOrNull { it is ElixirMultiplicationInfixOperator && it.text == "/" } ?: return null
         val operand = operation.firstChild as? UnqualifiedNoArgumentsCall<*> ?: return null
-        val previous = previousCodeLeaf(operand)?.text
 
         return when (operand.text) {
-            "=>" -> if (previous in setOf(null, "&", "(", "=")) operand.textRange to syntaxErrorBefore("'=>'") else null
-            "//" -> {
-                val between = operation.containingFile.viewProvider.contents.subSequence(operand.textRange.endOffset, operator.textRange.startOffset)
+            // Elixir names the `=>`, having read no further. `=>` is never referenceable, so what stands before it
+            // does not matter: where it is a map's association the map parses and this is not the shape.
+            "=>" -> operand.textRange to syntaxErrorBefore("'=>'")
+            // `//` after an operand is the step operator rather than a reference, so only an opener admits one.
+            "//" if previousCodeLeaf(operand)?.text in REFERENCE_OPENERS -> {
+                val between = operation.containingFile.viewProvider.contents
+                    .subSequence(operand.textRange.endOffset, operator.textRange.startOffset)
 
-                if ('\n' in between && (previous == null || previous == "&")) {
+                if ('\n' in between || ElixirLanguageLevelResolver.isAvailable(STEP_OPERATOR, operand)) {
                     operator.textRange to syntaxErrorBefore("'/'")
                 } else {
                     null
@@ -340,6 +345,9 @@ internal class InvalidConstruct : Annotator, DumbAware {
 private val UNESCAPING_SIGILS = setOf("s", "c", "w")
 
 private val CLOSING_TOKENS = setOf(",", ")", ">>", "]", "}")
+
+/** What can stand before a reference, where an operator names a function rather than standing between operands. */
+private val REFERENCE_OPENERS = setOf(null, "&", "(", "=")
 
 private val CLOSING_DELIMITERS = mapOf("(" to ")", "[" to "]", "{" to "}", "<" to ">")
 

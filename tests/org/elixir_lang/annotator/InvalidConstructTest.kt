@@ -228,7 +228,7 @@ class InvalidConstructTest : BasePlatformTestCase() {
 
             for (source in listOf(
                 "&//\\\n/2", "&//\\\n /2", "&// \\\n/2", "//\\\n/2", "[&//\\\n/2]", "&//\\\n/1", "f(&//\\\n/2)",
-                "&//\\\n/2 |> f",
+                "&//\\\n/2 |> f", "&(//\\\n/2)",
             )) {
                 val errors = errors(languageLevel, source)
                 assertEquals(
@@ -239,12 +239,13 @@ class InvalidConstructTest : BasePlatformTestCase() {
             }
         }
 
-        // Elixir reads `=>` in a map as the association, and `//` after `(` or without a newline differs by release.
+        // Elixir reads `=>` in a map as the association, and before 1.12 `//` is two `/` rather than an operator, so
+        // a reference to it only fails where a newline leaves the `/` no operand.
         assertFalse(
             errors(elixir("1.11.0"), "%{a => /2}")
                 .any { (_, description) -> description == "syntax error before: '=>'" }
         )
-        for (source in listOf("&(//\\\n/2)", "&///2", "&// /2")) {
+        for (source in listOf("&///2", "&// /2")) {
             assertFalse(
                 source,
                 errors(elixir("1.11.0"), source).any { (_, description) -> description == "syntax error before: '/'" }
