@@ -14,12 +14,12 @@
 {"hash":"23e40b4cb3ddd48f","origin":"measured","source":"1..2 + 3//4"}
 {"hash":"3dbf110540c98c88","origin":"measured","source":"foo..bar++baz//bat"}
 {"hash":"f35d253ebd550085","origin":"measured","source":"(foo++bar)..baz//bat"}
-{"hash":"851e00c785d7aa71","origin":"measured","source":"a.'\\xg'"}
-{"hash":"dfba61893b0349e4","origin":"measured","source":"a.'\\ug'"}
-{"hash":"0b33b4614b11a0a5","origin":"measured","source":"a.'\\u{110000}'"}
-{"hash":"4c8d2b64713e3453","origin":"measured","source":"a.'\\u{D800}'"}
-{"hash":"39b20b2901338d72","origin":"measured","source":"a.\"\\xg\"()"}
-{"hash":"80155a018aeb7ee4","origin":"measured","source":"Foo.\"\\xg\"()"}
+{"hash":"851e00c785d7aa71","origin":"measured","source":"a.'\\xg'","unlike_elixir":{"releases":["1.18.4"],"reason":"An invalid escape in a quoted call name: 1.18 raises a MatchError while unescaping it; the annotators give 1.19's message."}}
+{"hash":"dfba61893b0349e4","origin":"measured","source":"a.'\\ug'","unlike_elixir":{"releases":["1.18.4"],"reason":"An invalid escape in a quoted call name: 1.18 raises a MatchError while unescaping it; the annotators give 1.19's message."}}
+{"hash":"0b33b4614b11a0a5","origin":"measured","source":"a.'\\u{110000}'","unlike_elixir":{"releases":["1.18.4"],"reason":"An invalid escape in a quoted call name: 1.18 raises a MatchError while unescaping it; the annotators give 1.19's message."}}
+{"hash":"4c8d2b64713e3453","origin":"measured","source":"a.'\\u{D800}'","unlike_elixir":{"releases":["1.18.4"],"reason":"An invalid escape in a quoted call name: 1.18 raises a MatchError while unescaping it; the annotators give 1.19's message."}}
+{"hash":"39b20b2901338d72","origin":"measured","source":"a.\"\\xg\"()","unlike_elixir":{"releases":["1.18.4"],"reason":"An invalid escape in a quoted call name: 1.18 raises a MatchError while unescaping it; the annotators give 1.19's message."}}
+{"hash":"80155a018aeb7ee4","origin":"measured","source":"Foo.\"\\xg\"()","unlike_elixir":{"releases":["1.18.4"],"reason":"An invalid escape in a quoted call name: 1.18 raises a MatchError while unescaping it; the annotators give 1.19's message."}}
 {"hash":"abc162526adf603b","origin":"measured","source":"a.\"\\x41\"()"}
 {"hash":"bcb19c0fb954be8a","origin":"measured","source":"a.'\\q'"}
 {"hash":"a1441379ec9bbc14","origin":"measured","source":"\"\\xA\""}
@@ -342,7 +342,7 @@
 {"hash":"9da35fb3e34e1051","origin":"measured","source":"\"#{://}\""}
 {"hash":"ca85e3153dedd74a","origin":"measured","source":"0xFin x"}
 {"hash":"fc68cb3a9debf97a","origin":"measured","source":"0b1and@x"}
-{"hash":"7b1c3b944b9e6eeb","origin":"measured","source":"0b1do: 1"}
+{"hash":"7b1c3b944b9e6eeb","origin":"measured","source":"0b1do: 1","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"`do:` after a number: the annotation keeps the first sentence of Elixir's message, whose first line runs into its example."}}
 {"hash":"f300db16ec08832b","origin":"measured","source":"1andé 2"}
 {"hash":"7cf45ae59b33a45a","origin":"measured","source":"0b1not\tin x"}
 {"hash":"08e1b1aa2c93a08b","origin":"measured","source":"0b1not\\\nin x"}
@@ -1000,13 +1000,13 @@
 {"hash":"7a481e16e4385cc5","origin":"InvalidConstructTest.kt","source":"fn x -> x end"}
 {"hash":"558d2a02b3e12509","origin":"InvalidConstructTest.kt","source":"fn 1 -> 2; 3 end"}
 {"hash":"fee89c99c9dfa559","origin":"InvalidConstructTest.kt","source":"fn x -> x; 1 end"}
-{"hash":"cdcb336029b1f09b","origin":"InvalidConstructTest.kt","source":"% {}"}
-{"hash":"feda5d13deaeb283","origin":"InvalidConstructTest.kt","source":"%\t{}"}
-{"hash":"9080179298d82bb3","origin":"InvalidConstructTest.kt","source":"%  {a: 1}"}
-{"hash":"9786bbcf7afaac84","origin":"InvalidConstructTest.kt","source":"% {1, 2, 3}"}
-{"hash":"bf8eb6573aedcc32","origin":"InvalidConstructTest.kt","source":"%  \t{}"}
-{"hash":"133033b8b8313a71","origin":"InvalidConstructTest.kt","source":"%\\\n{}"}
-{"hash":"f976fdca4eae874b","origin":"InvalidConstructTest.kt","source":"%  \\\n{}"}
+{"hash":"cdcb336029b1f09b","origin":"InvalidConstructTest.kt","source":"% {}","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5"],"reason":"`unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows."}}
+{"hash":"feda5d13deaeb283","origin":"InvalidConstructTest.kt","source":"%\t{}","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5"],"reason":"`unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows."}}
+{"hash":"9080179298d82bb3","origin":"InvalidConstructTest.kt","source":"%  {a: 1}","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5"],"reason":"`unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows."}}
+{"hash":"9786bbcf7afaac84","origin":"InvalidConstructTest.kt","source":"% {1, 2, 3}","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5"],"reason":"`unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows."}}
+{"hash":"bf8eb6573aedcc32","origin":"InvalidConstructTest.kt","source":"%  \t{}","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5"],"reason":"`unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows."}}
+{"hash":"133033b8b8313a71","origin":"InvalidConstructTest.kt","source":"%\\\n{}","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5"],"reason":"`unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows."}}
+{"hash":"f976fdca4eae874b","origin":"InvalidConstructTest.kt","source":"%  \\\n{}","unlike_elixir":{"releases":["1.11.4","1.12.3","1.13.4","1.14.5"],"reason":"`unexpected space between % and {`: before 1.15 Elixir reports only a syntax error whose position depends on what follows."}}
 {"hash":"f14b86ef41995e9b","origin":"InvalidConstructTest.kt","source":"?\\u{D800}"}
 {"hash":"757993ac3ed95687","origin":"InvalidConstructTest.kt","source":"?\\x{110000}"}
 {"hash":"2378cec19c894da7","origin":"InvalidConstructTest.kt","source":"% Foo{}"}
@@ -1032,7 +1032,7 @@
 {"hash":"5296cff52cb80c4e","origin":"InvalidConstructTest.kt","source":"~s(\\u{110000})"}
 {"hash":"3531f1d4f5658b90","origin":"InvalidConstructTest.kt","source":"~S(\\u{110000})"}
 {"hash":"97a5136ec6034476","origin":"InvalidConstructTest.kt","source":"~r/\\u{110000}/"}
-{"hash":"490fa799d9db8049","origin":"InvalidConstructTest.kt","source":"a.\"\\u{110000}\"()"}
+{"hash":"490fa799d9db8049","origin":"InvalidConstructTest.kt","source":"a.\"\\u{110000}\"()","unlike_elixir":{"releases":["1.18.4"],"reason":"An invalid escape in a quoted call name: 1.18 raises a MatchError while unescaping it; the annotators give 1.19's message."}}
 {"hash":"c8bd5192d1c69cc3","origin":"InvalidConstructTest.kt","source":"defmodule Sample do\n  @moduledoc \"\"\"\n      x = :foo.Bar\n  \"\"\"\nend\n"}
 {"hash":"95db86b42d972510","origin":"measured","source":"x.** ++ /2"}
 {"hash":"4d235975f9a4d8e9","origin":"measured","source":"x.** ++\t/2"}
@@ -1277,13 +1277,13 @@
 {"hash":"39226f481639528f","origin":"measured","source":"~s'''\n#{\"\n'''\n\"}\n'''"}
 {"hash":"f2ffa132cf46c95e","origin":"measured","source":"'''\n#{\"a\nb\"\n'''\n}"}
 {"hash":"b71e1f08a01b7b37","origin":"measured","source":"'''\n#{\"\"\"\n'''\n\"\"\"}\n'''"}
-{"hash":"3e5898a025edc849","origin":"measured","source":"\"\"\"\n#{'\\xZ'}\n"}
-{"hash":"f57f88f8b9bb967a","origin":"measured","source":"\"\"\"\n#{:\"\\xZ\"}\n"}
-{"hash":"7adb884e56b41e66","origin":"measured","source":"\"\"\"\n#{\"\\u{zz}\"}\n"}
-{"hash":"475e6fef1226a6bd","origin":"measured","source":"~s\"\"\"\n#{\"\\xZ\"}\n"}
+{"hash":"3e5898a025edc849","origin":"measured","source":"\"\"\"\n#{'\\xZ'}\n","unlike_elixir":{"releases":["1.12.3","1.13.4","1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"From 1.12 an invalid escape inside a closed interpolation of an unterminated heredoc fails before its missing terminator; the plugin reports both."}}
+{"hash":"f57f88f8b9bb967a","origin":"measured","source":"\"\"\"\n#{:\"\\xZ\"}\n","unlike_elixir":{"releases":["1.12.3","1.13.4","1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"From 1.12 an invalid escape inside a closed interpolation of an unterminated heredoc fails before its missing terminator; the plugin reports both."}}
+{"hash":"7adb884e56b41e66","origin":"measured","source":"\"\"\"\n#{\"\\u{zz}\"}\n","unlike_elixir":{"releases":["1.12.3","1.13.4","1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"From 1.12 an invalid escape inside a closed interpolation of an unterminated heredoc fails before its missing terminator; the plugin reports both."}}
+{"hash":"475e6fef1226a6bd","origin":"measured","source":"~s\"\"\"\n#{\"\\xZ\"}\n","unlike_elixir":{"releases":["1.12.3","1.13.4","1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"From 1.12 an invalid escape inside a closed interpolation of an unterminated heredoc fails before its missing terminator; the plugin reports both."}}
 {"hash":"eac59e4685a2a4aa","origin":"measured","source":"\"\"\"\n#{\"\\xZ\"}\n\"\"\""}
-{"hash":"0470112944466d24","origin":"measured","source":"\"\"\"\n#{'''\n\\xZ\n'''}\n"}
-{"hash":"f72da046b47ad4f3","origin":"measured","source":"\"\"\"\na\n#{\"\\xZ\"}\nb\n"}
+{"hash":"0470112944466d24","origin":"measured","source":"\"\"\"\n#{'''\n\\xZ\n'''}\n","unlike_elixir":{"releases":["1.12.3","1.13.4","1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"From 1.12 an invalid escape inside a closed interpolation of an unterminated heredoc fails before its missing terminator; the plugin reports both."}}
+{"hash":"f72da046b47ad4f3","origin":"measured","source":"\"\"\"\na\n#{\"\\xZ\"}\nb\n","unlike_elixir":{"releases":["1.12.3","1.13.4","1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"From 1.12 an invalid escape inside a closed interpolation of an unterminated heredoc fails before its missing terminator; the plugin reports both."}}
 {"hash":"0d17c694645ef40d","origin":"measured","source":"\"\"\"\n#{~c\"\\xZ\"}\n"}
 {"hash":"0e79758c10480aa2","origin":"measured","source":"\"#{\"\"\"x\n"}
 {"hash":"5c7a8fc35c322467","origin":"measured","source":"\"#{\"\"\"\nfoo\n\"\"\"\n\"bar\""}
@@ -1408,15 +1408,15 @@
 {"hash":"baf11a2410d093ce","origin":"measured","source":"0b1foŁ"}
 {"hash":"3e5d6bf076a1fbdf","origin":"measured","source":"0b1Ł"}
 {"hash":"78af970a8dca5b59","origin":"measured","source":"1not in::x"}
-{"hash":"46809c3605df3ee3","origin":"measured","source":"1not in:x"}
+{"hash":"46809c3605df3ee3","origin":"measured","source":"1not in:x","unlike_elixir":{"releases":["1.11.4"],"reason":"Elixir's tokenizer rejects a word first, so its parser never reaches the construct the plugin also reports there."}}
 {"hash":"a4ce35daca1cfdac","origin":"measured","source":"1not in: x"}
 {"hash":"e5d3ceb9634b5bca","origin":"measured","source":"1not in?x"}
-{"hash":"81e2542c419e6685","origin":"measured","source":"1not in@x"}
+{"hash":"81e2542c419e6685","origin":"measured","source":"1not in@x","unlike_elixir":{"releases":["1.11.4"],"reason":"Elixir's tokenizer rejects a word first, so its parser never reaches the construct the plugin also reports there."}}
 {"hash":"68e7b129ba5f2356","origin":"measured","source":"1not in𝒳"}
-{"hash":"79af4cffb4d149e8","origin":"measured","source":"1not ińx"}
+{"hash":"79af4cffb4d149e8","origin":"measured","source":"1not ińx","unlike_elixir":{"releases":["1.11.4"],"reason":"Elixir's tokenizer rejects a word first, so its parser never reaches the construct the plugin also reports there."}}
 {"hash":"7e992fc1d6f90358","origin":"measured","source":"1not iné"}
 {"hash":"1a17a67d34e81714","origin":"measured","source":"0b1not in::x"}
-{"hash":"3e60f71dd21a7087","origin":"measured","source":"0b1not in𝒳"}
+{"hash":"3e60f71dd21a7087","origin":"measured","source":"0b1not in𝒳","unlike_elixir":{"releases":["1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"Elixir's tokenizer rejects a word first, so its parser never reaches the construct the plugin also reports there."}}
 {"hash":"95c6a0c3332feef4","origin":"measured","source":"1and́ 2"}
 {"hash":"952463d72116c028","origin":"measured","source":"1and? 2"}
 {"hash":"856b21c484a27f18","origin":"measured","source":"1and! 2"}
@@ -1425,7 +1425,7 @@
 {"hash":"ac49437405574ca0","origin":"measured","source":"1and::x"}
 {"hash":"0b08f7c2d87e77fd","origin":"measured","source":"1and𝒳 2"}
 {"hash":"f7d7129a862e6445","origin":"measured","source":"0b1and́ 2"}
-{"hash":"fdb4d3a690fb8483","origin":"measured","source":"0b1and𝒳 2"}
+{"hash":"fdb4d3a690fb8483","origin":"measured","source":"0b1and𝒳 2","unlike_elixir":{"releases":["1.14.5","1.15.8","1.16.3","1.17.3","1.18.4","1.19.5","1.20.4"],"reason":"Elixir's tokenizer rejects a word first, so its parser never reaches the construct the plugin also reports there."}}
 {"hash":"d0f51a4fcbf7a243","origin":"measured","source":"1_000and"}
 {"hash":"d9b5f3384b2ace20","origin":"measured","source":"1__0and"}
 {"hash":"7e43eb4aafd101db","origin":"measured","source":"1_and"}
