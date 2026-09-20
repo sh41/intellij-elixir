@@ -15,6 +15,7 @@ import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.util.io.FileUtil
 import com.intellij.psi.PsiComment
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiRecursiveElementWalkingVisitor
@@ -254,6 +255,9 @@ class CheckedExampleTestCase private constructor(
 
     companion object {
         private val EXAMPLES = Path.of("testData", "org", "elixir_lang", "annotator", "quoter_agreement", "sources.jsonl")
+        private val SNIPPETS =
+            Path.of("testData", "org", "elixir_lang", "parser_definition", "elixir_snippets", "snippets.jsonl")
+        private const val CORPUS_ENVIRONMENT_VARIABLE = "ELIXIR_PARSING_CORPUS"
 
         /** Every ERROR-level inspection of syntax. Ones that resolve names are left off: an unresolved name is not a syntax error. */
         private val INSPECTIONS: Array<InspectionProfileEntry> by lazy {
@@ -270,8 +274,18 @@ class CheckedExampleTestCase private constructor(
         @JvmStatic
         fun suite(): Test {
             val suite = TestSuite(CheckedExampleTestCase::class.java.name)
+            val examples = examples()
 
-            for (example in examples()) {
+            if (System.getenv(CORPUS_ENVIRONMENT_VARIABLE).isNullOrEmpty()) {
+                suite.addTest(
+                    TestSuite.warning(
+                        "$CORPUS_ENVIRONMENT_VARIABLE is not set. The Gradle test task sets it when " +
+                            ".github/ci-versions.json declares a corpus for Elixir ${System.getenv("ELIXIR_VERSION")}"
+                    )
+                )
+            }
+
+            for (example in examples) {
                 val answer = try {
                     Quoter.quote(example.source)
                 } catch (e: Throwable) {
@@ -288,7 +302,14 @@ class CheckedExampleTestCase private constructor(
             return suite
         }
 
-        private fun examples(): List<Example> =
+        /**
+         * Every example, from all three sources: the hand-edited ones, the snippets taken from Elixir's own tests,
+         * and the corpus of the release under test. They differ only in where the text comes from and what an
+         * example is called, so one suite judges them all the same way.
+         */
+        private fun examples(): List<Example> = sources() + snippets() + corpus()
+
+        private fun sources(): List<Example> =
             Files.readAllLines(EXAMPLES).filter { it.isNotBlank() }.map { line ->
                 val json = JsonParser.parseString(line).asJsonObject
 
@@ -299,6 +320,42 @@ class CheckedExampleTestCase private constructor(
                     unlikeElixir = json.getAsJsonObject("unlike_elixir")?.let(::UnlikeElixir),
                 )
             }
+
+        /** Named by origin as well as hash, since a failing snippet is looked up in Elixir's tests by file and line. */
+        private fun snippets(): List<Example> =
+            Files.readAllLines(SNIPPETS).filter { it.isNotBlank() }.map { line ->
+                val json = JsonParser.parseString(line).asJsonObject
+                val origin = json.getAsJsonObject("origin")
+
+                Example(
+                    name = "${json.get("hash").asString} ${origin.get("file").asString}:${origin.get("line").asInt}",
+                    source = StringUtil.convertLineSeparators(json.get("source").asString),
+                    expectsMessage = true,
+                    unlikeElixir = null,
+                )
+            }
+
+        /** Empty where the leg declares no corpus; [suite] turns that into a warning rather than silence. */
+        private fun corpus(): List<Example> {
+            val root = System.getenv(CORPUS_ENVIRONMENT_VARIABLE)?.takeIf { it.isNotEmpty() } ?: return emptyList()
+
+            return Files.walk(Path.of(root)).use { paths ->
+                paths
+                    .filter { Files.isRegularFile(it) }
+                    .filter { it.fileName.toString().let { name -> name.endsWith(".ex") || name.endsWith(".exs") } }
+                    .map { FileUtil.toSystemIndependentName(Path.of(root).relativize(it).toString()) to it }
+                    .toList()
+            }
+                .sortedBy { it.first }
+                .map { (relativePath, path) ->
+                    Example(
+                        name = relativePath,
+                        source = StringUtil.convertLineSeparators(Files.readString(path)).trim(),
+                        expectsMessage = true,
+                        unlikeElixir = null,
+                    )
+                }
+        }
 
         private fun languageLevel(): ElixirLanguageLevel =
             ElixirLanguageLevel.of(System.getenv("ELIXIR_VERSION"), System.getenv("ERLANG_VERSION"))

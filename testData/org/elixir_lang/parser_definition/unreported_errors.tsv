@@ -1,6 +1,0 @@
-# Snippets Elixir rejects that ElixirSnippetErrorReportingTestCase expects the plugin not to report as an error:
-#
-#     <snippet hash>	<Elixir versions, comma-separated>	<the snippet, for reading>
-#
-# Each listed test must fail on every version listed, and must exist there. In the snippet, \n is a newline and \u{...}
-# a code point.

@@ -189,7 +189,7 @@ listed above yourself.
   [above](#elixir-and-erlang). Install both with `mise install`, or install them yourself and put
   `erl`/`erl.exe` and `elixir` on `PATH`, or point `ERLANG_SDK_HOME`/`ELIXIR_SDK_HOME` at them.
 - **JetBrains Runtime**: **21** for IDEA 2026.1, **25** for 2026.2 and later.
-  `build.gradle.kts` picks the bytecode level from the platform build number (262+ → 25), and
+  `build.gradle.kts` picks the bytecode level from the platform build number (262+ -> 25), and
   `javac --release` validates the platform JARs against it, so the wrong JDK fails the compile rather
   than producing a bad build. `mise install` provisions the pinned JBR.
 - **Make**: *not* required in the normal path. Only the last-resort from-source Elixir fallback uses it.
@@ -350,22 +350,21 @@ needs at runtime. Exporting `MIX_ENV` overrides this, and the path the build loo
 same value, so the two cannot disagree. If you switch it, expect one extra `releaseQuoter` run; the
 `_build` subtree for the previous environment is left behind and can be deleted.
 
-`test` also parses and quotes every `.ex` and `.exs` file of the Elixir release under test
-(`ElixirLangElixirParsingTestCase`). Which commit that is comes from the `corpus` of its pair in
-`.github/ci-versions.json`: on a cold cache `elixirParsingCorpus` downloads the archive into
-`cache/corpus/archives` and extracts it to `cache/corpus/<elixir version>`. Each test is named after the file
-it parsed, as `elixir-lang/elixir@<commit>/lib/...`. An Elixir that no pair declares has no corpus, and the
-suite reports a single failing test saying so.
+`test` also judges every example one suite gathers from three sources, against the Elixir release under test -
+`CheckedExampleTestCase`, one test per example, named by the example's hash. Where that Elixir accepts a source
+the plugin must parse it to the same quoted form and report no error; where it rejects one the plugin must
+report an error, at Elixir's position and, where an annotator owns the wording, with Elixir's own message.
 
-Whole files never reach Elixir's hardest parser cases, which live in string literals inside its tests.
-`ElixirSnippetParsingTestCase` covers those: every source string that Elixir's parser, tokenizer, formatter and
-normalizer tests hand to the parser, from every release in `.github/ci-versions.json`, is committed once in
-`testData/org/elixir_lang/parser_definition/elixir_snippets/snippets.jsonl`. Each snippet the leg's quoter
-accepts is a test, named by the snippet's hash and where it first appears; snippets the quoter rejects are not
-tests. `NOTICE.md` beside it carries the attribution the Apache License asks for.
+The first source is hand-curated: `testData/org/elixir_lang/annotator/quoter_agreement/sources.jsonl`, one JSON
+object per line. A `hash`, a `source`, and either nothing more or an `unlike_elixir` object naming the `releases`
+the plugin differs from Elixir on by design and the `reason` why - the only sanctioned way to keep a known
+difference, and the suite fails if it ever stops reproducing.
 
-When you add an Elixir release to `.github/ci-versions.json`, give its pair a `corpus` and regenerate the
-snippets from the repository root, with every declared pair installed in mise:
+The second is every source string Elixir's own parser, tokenizer, formatter and normalizer tests hand to the
+parser, from every release in `.github/ci-versions.json`, committed once in
+`testData/org/elixir_lang/parser_definition/elixir_snippets/snippets.jsonl`. `NOTICE.md` beside it carries the
+attribution the Apache License asks for. Regenerate both from the repository root, with every declared pair
+installed in mise:
 
 ```sh
 mise exec -- elixir testData/org/elixir_lang/parser_definition/elixir_snippets/generate.exs
@@ -375,10 +374,12 @@ It reads each release's tests with that release's own Elixir, prints how many sn
 file, and lists helpers the tests define and call with a literal string that it does not read, which is how a
 new way of handing source to the parser shows up. Commit `snippets.jsonl` and `NOTICE.md`.
 
-A corpus file the plugin cannot yet parse or quote as Elixir does can be listed in
-`testData/org/elixir_lang/parser_definition/corpus_known_failures.tsv`, and a snippet in `snippet_known_failures.tsv`
-beside it, with the Elixir versions it fails on. A listed test must keep failing, and must exist, on each of those
-versions, so the list cannot outlive the fix.
+The third is whole files: every `.ex` and `.exs` of the Elixir release under test. Which commit that is comes
+from the `corpus` of its pair in `.github/ci-versions.json`: on a cold cache `elixirParsingCorpus` downloads the
+archive into `cache/corpus/archives` and extracts it to `cache/corpus/<elixir version>`. Each such example is
+named after the file it came from, as `elixir-lang/elixir@<commit>/lib/...`. An Elixir that no pair declares has
+no corpus, and the suite reports a single warning test saying so - give a new release's pair a `corpus` in
+`.github/ci-versions.json` when you add one.
 
 To build (so you get a .zip file):
 ```sh
@@ -581,11 +582,11 @@ The committed **Run Tests** configuration under `.run/` already runs `check`.
 The Elixir parser and PSI element classes in `gen/` are generated from `src/org/elixir_lang/Elixir.bnf` using the [GrammarKit](https://github.com/JetBrains/Grammar-Kit) plugin. If you modify the `.bnf` file (e.g. adding a `mixin`, changing a rule, or adding a new production), you must regenerate the parser code.
 
 #### Prerequisites
-- Install the **GrammarKit** plugin in IntelliJ IDEA (Settings → Plugins → search "Grammar-Kit").
+- Install the **GrammarKit** plugin in IntelliJ IDEA (Settings -> Plugins -> search "Grammar-Kit").
 
 #### Regenerating Parser Code
 1. Open `src/org/elixir_lang/Elixir.bnf` in the editor.
-2. Right-click inside the file → **Generate Parser Code**.
+2. Right-click inside the file -> **Generate Parser Code**.
 3. The generator writes updated files into the `gen/` directory.
 
 #### Fixing CRLF Line Endings (Windows)
@@ -622,7 +623,7 @@ The full set of source roots:
 
 #### Key BNF Concepts
 
-**Rule names vs interface names:** GrammarKit generates PSI classes named after the BNF **rule** (e.g. rule `heredoc` → `ElixirHeredoc`). The `implements` attribute on a rule specifies the hand-written **interface** the generated class implements. These are independent - do not confuse them.
+**Rule names vs interface names:** GrammarKit generates PSI classes named after the BNF **rule** (e.g. rule `heredoc` -> `ElixirHeredoc`). The `implements` attribute on a rule specifies the hand-written **interface** the generated class implements. These are independent - do not confuse them.
 
 **Visitor method generation:** For each rule, GrammarKit generates a `visitRuleName(ElixirRuleName)` method in `ElixirVisitor`. For each interface in `implements`, it generates a `visitInterfaceName(InterfaceName)` bridge method. If a rule name and an interface name (after stripping packages) are identical, the visitor generates a self-recursive method - causing a `StackOverflowError` at runtime.
 
@@ -635,7 +636,7 @@ The full set of source roots:
 //   visitHeredoc(ElixirHeredoc) { visitHeredocLiteral(this); }  ← safe dispatch
 ```
 
-**Resolution:** When adding a new `implements` interface to a rule, ensure the interface's simple name does not match any BNF rule name. If it would collide, rename the interface (e.g. `Heredoc` → `HeredocLiteral`) or the rule.
+**Resolution:** When adding a new `implements` interface to a rule, ensure the interface's simple name does not match any BNF rule name. If it would collide, rename the interface (e.g. `Heredoc` -> `HeredocLiteral`) or the rule.
 
 **`extends` attribute:** Causes the child rule's generated interface to extend the parent rule's interface, AND collapses AST nodes. Use it for expression hierarchies where shallow AST is desired. Do **not** use it solely for visitor type compatibility - it changes the PSI tree shape and will break parsing tests that compare golden `.txt` files.
 
@@ -677,12 +678,12 @@ pin = DO
 The Elixir lexer `gen/org/elixir_lang/ElixirFlexLexer.java` is generated from `src/org/elixir_lang/Elixir.flex` using [JFlex](https://jflex.de/). If you modify `Elixir.flex` (e.g. adding a new state, changing a rule, or fixing escape handling), you must regenerate the lexer.
 
 #### Prerequisites
-- Install the **GrammarKit** plugin in IntelliJ IDEA (it bundles JFlex). Settings → Plugins → search "Grammar-Kit".
+- Install the **GrammarKit** plugin in IntelliJ IDEA (it bundles JFlex). Settings -> Plugins -> search "Grammar-Kit".
 
 #### Regenerating the Lexer
 
 1. Open `src/org/elixir_lang/Elixir.flex` in the editor.
-2. Right-click inside the file → **Run JFlex Generator**.
+2. Right-click inside the file -> **Run JFlex Generator**.
 3. The generator overwrites `gen/org/elixir_lang/ElixirFlexLexer.java` in place.
    The first time you run it (or on a fresh checkout) it may prompt you to select an output
    folder - point it at the repository root so it discovers `gen/` automatically.

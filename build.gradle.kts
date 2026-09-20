@@ -365,7 +365,7 @@ tasks.withType<DependencyUpdatesTask> {
     }
 
 
-    // Only report stable → stable upgrades; reject pre-releases (RC, Beta, Alpha, SNAPSHOT, M1, etc.)
+    // Only report stable -> stable upgrades; reject pre-releases (RC, Beta, Alpha, SNAPSHOT, M1, etc.)
     rejectVersionIf {
         val stableKeyword = listOf("RELEASE", "FINAL", "GA").any { kw ->
             candidate.version.uppercase().contains(kw)
@@ -941,8 +941,8 @@ tasks.register<CachePathsTask>("quoterCachePaths") {
 }
 
 // --- Elixir parsing corpus ---
-// ElixirLangElixirParsingTestCase parses and quotes every .ex and .exs file of the corpus
-// .github/ci-versions.json declares for this Elixir. Read through `providers` so the configuration cache
+// CheckedExampleTestCase judges every .ex and .exs file of the corpus .github/ci-versions.json declares for
+// this Elixir the same way it judges every other example. Read through `providers` so the configuration cache
 // is invalidated when the declaration changes.
 val elixirParsingCorpus: List<CorpusEntry> = corpusFor(
     providers.fileContents(layout.projectDirectory.file(".github/ci-versions.json")).asText.get(),
