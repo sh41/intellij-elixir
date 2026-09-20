@@ -245,6 +245,7 @@
         <annotator implementationClass="org.elixir_lang.annotator.InvalidToken" language="Elixir"/>
         <highlightErrorFilter implementation="org.elixir_lang.annotator.RejectedLetterErrorFilter"/>
         <highlightErrorFilter implementation="org.elixir_lang.annotator.PowerOperatorErrorFilter"/>
+        <highlightErrorFilter implementation="org.elixir_lang.annotator.CharEscapeSpilloverErrorFilter"/>
         <annotator implementationClass="org.elixir_lang.annotator.InvalidConstruct" language="Elixir"/>
         <annotator implementationClass="org.elixir_lang.annotator.VersionedSyntax" language="Elixir"/>
 

@@ -114,6 +114,33 @@ class InvalidConstructTest : BasePlatformTestCase() {
         }
     }
 
+    /**
+     * The token after `?\x`/`?\u` reaches Elixir's parser as an Erlang atom, so the whole token is named, printed
+     * the way Erlang prints an atom of that text - bare when it needs no quoting, `'...'` otherwise. Measured
+     * against Elixir 1.12.3/OTP 24.3.4.6 and 1.20.4/OTP 29.0.6: identical on both.
+     */
+    /**
+     * The plugin's lexer keeps reading a hexadecimal escape for up to two hex digits (`{HEXADECIMAL_DIGIT}{1,2}` in
+     * `Elixir.flex`), whether or not that is where Elixir's own token ends, so the reported range is whatever of
+     * the whole token landed inside the char token - never more, since [AnnotationHolder] rejects a wider one - and
+     * the message names the whole token regardless, exactly as Elixir does.
+     */
+    fun testCharEscapeNamesTheWholeFollowingToken() {
+        for ((source, rangeText, token) in listOf(
+            Triple("?\\xab", "ab", "ab"),
+            Triple("?\\xAB", "AB", "'AB'"),
+            Triple("?\\xAz", "A", "'Az'"),
+            Triple("?\\xA", "A", "'A'"),
+            Triple("?\\xabc123", "ab", "abc123"),
+            Triple("?\\x_foo", "", "'_foo'"),
+            Triple("?\\xif", "", "'if'"),
+            Triple("?\\xcase", "ca", "'case'"),
+            Triple("?\\uz", "", "z"),
+        )) {
+            assertErrors(elixir("1.20.0"), source, rangeText to syntaxErrorBefore(token))
+        }
+    }
+
     fun testMapsAndStructsThatAreValid() {
         for (source in listOf("%{}", "% Foo{}", "%Foo {}", "%@foo{}")) {
             assertNoErrors(elixir("1.20.0"), source)

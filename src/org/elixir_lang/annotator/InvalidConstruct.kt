@@ -43,6 +43,7 @@ import org.elixir_lang.language_level.ElixirLanguageFeature.HEREDOC_TERMINATOR_A
 import org.elixir_lang.language_level.ElixirLanguageFeature.HEXADECIMAL_ESCAPE_NEEDS_TWO_DIGITS
 import org.elixir_lang.language_level.ElixirLanguageFeature.UNESCAPED_QUOTED_REMOTE_CALL_NAME
 import org.elixir_lang.language_level.ElixirLanguageFeature.STEP_OPERATOR
+import org.elixir_lang.language_level.ElixirLanguageLevel
 import org.elixir_lang.language_level.ElixirLanguageLevelResolver
 
 /**
@@ -63,6 +64,7 @@ internal class InvalidConstruct : Annotator, DumbAware {
             is ElixirAtom -> divisionAtom(element) ?: cutOffQuote(element)
             is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation -> operatorReference(element)
             is ElixirKeywordPair -> unnameableKey(element)
+            is ElixirCharToken -> notACharEscape(element) { ElixirLanguageLevelResolver.languageLevelFor(element) }
             else -> null
         } ?: return
 
@@ -153,6 +155,26 @@ internal class InvalidConstruct : Annotator, DumbAware {
         val contents = pair.containingFile.viewProvider.contents
 
         return colon.textRange to unexpectedToken(':'.code, column(contents, colon.textRange.startOffset))
+    }
+
+    /**
+     * `\x` and `\u` are not escapes after `?`: Elixir warns and reads `?x` or `?u`, so what follows is a token of
+     * its own that nothing can take, and it reports there. Every other escape, `?\n` and `?\\` included, is one.
+     *
+     * Elixir's parser prints that token the way Erlang prints an atom of the same text - bare when it needs no
+     * quoting, `'...'` otherwise - because the token reaches the yecc-generated parser as an Erlang atom. That is
+     * exactly [erlangAtom]. [spilledCharEscapeToken] finds the whole token, which [CharEscapeSpilloverErrorFilter]
+     * keeps the grammar from also reporting on its own.
+     */
+    private fun notACharEscape(charToken: ElixirCharToken, languageLevel: () -> ElixirLanguageLevel): Pair<TextRange, String>? {
+        val (token, last) = spilledCharEscapeToken(charToken) ?: return null
+
+        // Precise when `last` is inside charToken (the punctuation case); clamped when it spilled past charToken's
+        // own end (the identifier case) - the range must stay inside the element currently being annotated.
+        val end = minOf(last.textRange.endOffset, charToken.textRange.endOffset)
+
+        return TextRange(charToken.textRange.startOffset + 3, end) to
+            syntaxErrorBefore(erlangAtom(token, languageLevel()))
     }
 
     private fun anonymousFunctionWithoutClause(anonymousFunction: ElixirAnonymousFunction): Pair<TextRange, String>? {
