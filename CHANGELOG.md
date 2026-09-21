@@ -113,6 +113,8 @@
   - **`()` no longer reports an error where an operand is expected, as in `2 * ()`, `f(())` and `[()]`, which Elixir reads as an empty block.** Refs [#4080](https://github.com/intellij-elixir/intellij-elixir/issues/4080).
 - [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
   - **`**` is read as an operator only on Elixir 1.13 and later, so on 1.11 and 1.12 `x.** 2` is the call `x.*` multiplied by 2 and `2 ** 3` is reported as the syntax error that release gives.** Refs [#4080](https://github.com/intellij-elixir/intellij-elixir/issues/4080).
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **An infix operator with nothing left in the file to be its operand, as in `1 +` or `x..`, is now reported at the operator itself, where Elixir reports it, instead of past the end of the file.** Refs [#4080](https://github.com/intellij-elixir/intellij-elixir/issues/4080).
 - [#4141](https://github.com/intellij-elixir/intellij-elixir/pull/4141) [@sh41](https://github.com/sh41)
   - **A `@doc` whose value is an expression starting with a string, such as `@doc "text" <> "more"`, no longer reports an error on every highlighting pass.** Fixes [#4131](https://github.com/intellij-elixir/intellij-elixir/issues/4131).
 - [#4140](https://github.com/intellij-elixir/intellij-elixir/pull/4140) [@sh41](https://github.com/sh41)
