@@ -1,0 +1,91 @@
+package org.elixir_lang.injection.markdown
+
+import com.intellij.lang.Language
+import com.intellij.lang.injection.MultiHostRegistrar
+import com.intellij.openapi.diagnostic.RuntimeExceptionWithAttachments
+import com.intellij.openapi.util.Key
+import com.intellij.psi.PsiLanguageInjectionHost
+import com.intellij.psi.util.PsiTreeUtil
+import org.elixir_lang.PlatformTestCase
+import org.elixir_lang.injection.PsiLanguageInjectionHost.isDocumentationHost
+import org.elixir_lang.psi.AtUnqualifiedNoParenthesesCall
+import org.intellij.plugins.markdown.lang.MarkdownLanguage
+
+/**
+ * `injectMarkdownInQuote` used to wrap `startInjecting`, every `addPlace`, and `doneInjecting` in one try,
+ * so a caught throw from any `addPlace` skipped `doneInjecting` entirely. The registrar was left
+ * mid-`startInjecting`, and the platform throws `IllegalStateException` from the next `startInjecting()`
+ * call while it is - killing injection for the rest of the file, not just the one heredoc that threw.
+ * `startInjecting`/`doneInjecting` must balance even when `addPlace` throws.
+ */
+class InjectorDoneInjectingBalanceTest : PlatformTestCase() {
+    override fun getTestDataPath(): String = "testData/org/elixir_lang/injection/markdown"
+
+    private class RecordingRegistrar(private val failOnAddPlaceCall: Int) : MultiHostRegistrar {
+        val startInjectingLanguages = mutableListOf<Language>()
+        var doneInjectingCount = 0
+        private var addPlaceCallCount = 0
+
+        override fun startInjecting(language: Language): MultiHostRegistrar {
+            startInjectingLanguages.add(language)
+            return this
+        }
+
+        override fun startInjecting(language: Language, extension: String?): MultiHostRegistrar =
+            startInjecting(language)
+
+        override fun addPlace(
+            prefix: String?,
+            suffix: String?,
+            host: PsiLanguageInjectionHost,
+            rangeInsideHost: com.intellij.openapi.util.TextRange
+        ): MultiHostRegistrar {
+            addPlaceCallCount++
+
+            if (addPlaceCallCount == failOnAddPlaceCall) {
+                throw RuntimeExceptionWithAttachments("simulated addPlace failure")
+            }
+
+            return this
+        }
+
+        override fun doneInjecting() {
+            doneInjectingCount++
+        }
+
+        override fun <T> putInjectedFileUserData(key: Key<T>, data: T): MultiHostRegistrar = this
+    }
+
+    fun testDoneInjectingIsCalledEvenWhenAddPlaceThrows() {
+        myFixture.configureByFile("long_documentation.ex")
+        val documentationHost = PsiTreeUtil.findChildrenOfType(myFixture.file, AtUnqualifiedNoParenthesesCall::class.java)
+            .first { isDocumentationHost(it) }
+
+        // long_documentation.ex's @moduledoc has two Markdown places (see
+        // LongDocumentationInjectionTest.testDocumentationIsOneFragmentPerRunBetweenCodeBlocks) - failing
+        // the first addPlace call is enough to reach the bug, since the original code's try wrapped the
+        // whole loop
+        val registrar = RecordingRegistrar(failOnAddPlaceCall = 1)
+
+        // The caught addPlace failure is logged through Logger.error, which TestLoggerFactory otherwise
+        // turns into a hard test failure - suppress it, since this test is about the balance invariant,
+        // not about whether the failure gets logged
+        captureLoggedErrors(suppress = true) {
+            Injector().getLanguagesToInject(registrar, documentationHost)
+        }
+
+        // The platform tracks a single "currently injecting" flag across the whole registrar, not one per
+        // language, so it is the *totals* that must balance - filtering to Markdown's own start count would
+        // let the unrelated, unaffected Elixir code-block injection's doneInjecting() mask the imbalance
+        assertEquals(
+            "startInjecting() and doneInjecting() must balance across the whole registrar even when one " +
+                    "addPlace throws, or the next startInjecting() elsewhere throws IllegalStateException",
+            registrar.startInjectingLanguages.size,
+            registrar.doneInjectingCount
+        )
+        assertTrue(
+            "Fixture has no Markdown injection to have exercised the failing addPlace call",
+            registrar.startInjectingLanguages.contains(MarkdownLanguage.INSTANCE)
+        )
+    }
+}
