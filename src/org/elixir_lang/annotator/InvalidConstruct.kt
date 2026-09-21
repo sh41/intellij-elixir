@@ -59,9 +59,9 @@ internal class InvalidConstruct : Annotator, DumbAware {
             is ElixirEscapedCharacter -> invalidEscape(element)
             is ElixirHeredoc, is ElixirInterpolatedSigilHeredoc, is ElixirLiteralSigilHeredoc -> unterminatedHeredoc(element)
             is ElixirInterpolation -> unclosedInterpolation(element)
-            is ElixirLine -> if (element.parent is ElixirAtom) null else cutOffQuote(element)
-            is ElixirInterpolatedSigilLine, is ElixirLiteralSigilLine -> cutOffQuote(element)
-            is ElixirAtom -> divisionAtom(element) ?: cutOffQuote(element)
+            is ElixirLine -> if (element.parent is ElixirAtom) null else cutOffQuote(element) ?: unterminatedQuote(element)
+            is ElixirInterpolatedSigilLine, is ElixirLiteralSigilLine -> cutOffQuote(element) ?: unterminatedQuote(element)
+            is ElixirAtom -> divisionAtom(element) ?: cutOffQuote(element) ?: unterminatedQuote(element)
             is ElixirMatchedMultiplicationOperation, is ElixirUnmatchedMultiplicationOperation -> operatorReference(element)
             is ElixirKeywordPair -> unnameableKey(element)
             is ElixirCharToken -> notACharEscape(element) { ElixirLanguageLevelResolver.languageLevelFor(element) }
@@ -353,6 +353,30 @@ internal class InvalidConstruct : Annotator, DumbAware {
         return quote.textRange to "missing terminator: $terminator (for $owner starting at line $startLine)"
     }
 
+    /**
+     * A string, charlist, sigil, quoted atom or quoted call name that never finds its own closing delimiter before
+     * the file ends. Unlike [cutOffQuote], no enclosing heredoc is involved: the grammar's rule is pinned at the
+     * opening delimiter, so it keeps the quote as one element with nothing to end it, where Elixir's tokenizer
+     * reports the same gap at the opening delimiter itself.
+     */
+    private fun unterminatedQuote(quote: PsiElement): Pair<TextRange, String>? {
+        if (!isUnterminatedQuote(quote)) return null
+
+        val line = if (quote is ElixirAtom) quote.children.firstOrNull { it is ElixirLine } ?: return null else quote
+        val promoter = line.node.findChildByType(ElixirTypes.LINE_PROMOTER) ?: return null
+        val owner = when {
+            quote is ElixirAtom -> "atom"
+            quote is Sigil -> "sigil ~${quote.sigilName()}${promoter.text}"
+            PsiTreeUtil.getParentOfType(quote, ElixirRelativeIdentifier::class.java) != null -> "function name"
+            else -> "string"
+        }
+        val terminator = CLOSING_DELIMITERS[promoter.text] ?: promoter.text
+
+        val startLine = line(quote.containingFile.viewProvider.contents, quote.textRange.startOffset)
+
+        return quote.textRange to "missing terminator: $terminator (for $owner starting at line $startLine)"
+    }
+
     private fun invalidCodePoint(escape: ElixirQuoteHexadecimalEscapeSequence): Pair<TextRange, String>? {
         // Elixir unescapes a quoted remote call name only from 1.18. In `?\u{...}` it reads `?\u` and then reports a
         // syntax error before `{`.
@@ -404,6 +428,21 @@ private val QUOTE_TYPES = arrayOf(
 )
 
 private enum class CutOff { NONE, SUPPRESSED, FIRST }
+
+/**
+ * Whether [quote] (a string, charlist, sigil, quoted atom or quoted call name - or the `line` nested inside a quoted
+ * atom) has no closing delimiter of its own and isn't cut off early by an enclosing pre-1.12 heredoc, which
+ * [cutOffQuote] already owns, or by an interpolation of its own that never closes, which [unclosedInterpolation]
+ * already owns. [UnterminatedQuoteErrorFilter] uses this too, to hide the grammar's own redundant complaint about
+ * the same missing delimiter.
+ */
+internal fun isUnterminatedQuote(quote: PsiElement): Boolean {
+    val line = if (quote is ElixirAtom) quote.children.firstOrNull { it is ElixirLine } ?: return false else quote
+
+    return line.node.findChildByType(ElixirTypes.LINE_TERMINATOR) == null &&
+        cutOff(quote) == CutOff.NONE &&
+        PsiTreeUtil.findChildrenOfType(line, ElixirInterpolation::class.java).none(::isUnclosed)
+}
 
 /**
  * Before 1.12 Elixir ends a heredoc at its terminator line, after checking its opening line, and only then reads its

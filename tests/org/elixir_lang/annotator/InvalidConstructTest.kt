@@ -141,6 +141,21 @@ class InvalidConstructTest : BasePlatformTestCase() {
         }
     }
 
+    /** Verified on both 1.11.4 and 1.20.4 - the message is unchanged, only the position metadata differs. */
+    fun testUnterminatedQuoteNamesItsOwnKind() {
+        for (languageLevel in listOf(elixir("1.11.0"), elixir("1.20.0"))) {
+            for ((source, rangeText, message) in listOf(
+                Triple("~s<foobar", "~s<foobar", "missing terminator: > (for sigil ~s< starting at line 1)"),
+                Triple("~s|foobar", "~s|foobar", "missing terminator: | (for sigil ~s| starting at line 1)"),
+                Triple("\"foobar", "\"foobar", "missing terminator: \" (for string starting at line 1)"),
+                Triple(":\"foobar", ":\"foobar", "missing terminator: \" (for atom starting at line 1)"),
+                Triple("K.\"foobar", "\"foobar", "missing terminator: \" (for function name starting at line 1)"),
+            )) {
+                assertErrors(languageLevel, source, rangeText to message)
+            }
+        }
+    }
+
     fun testMapsAndStructsThatAreValid() {
         for (source in listOf("%{}", "% Foo{}", "%Foo {}", "%@foo{}")) {
             assertNoErrors(elixir("1.20.0"), source)
