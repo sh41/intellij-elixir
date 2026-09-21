@@ -19,14 +19,11 @@ import org.elixir_lang.psi.impl.call.CallImpl.hasDoBlockOrKeyword
 import org.elixir_lang.psi.impl.call.finalArguments
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl
 import org.elixir_lang.psi.impl.declarations.UseScopeImpl.selector
-import org.elixir_lang.psi.mix.Generator
 import org.elixir_lang.psi.operation.*
 import org.elixir_lang.psi.operation.infix.Position
 import org.elixir_lang.psi.operation.infix.Triple
 import org.elixir_lang.psi.scope.Variable
 import org.elixir_lang.psi.scope.WhileIn.whileIn
-import org.elixir_lang.structure_view.element.Callback
-import org.elixir_lang.structure_view.element.Delegation
 
 object ProcessDeclarationsImpl {
     @JvmField
@@ -138,37 +135,27 @@ object ProcessDeclarationsImpl {
     ): Boolean =
         // need to check if call is place because lastParent is set to place at start of treeWalkUp
         if (!call.isEquivalentTo(lastParent) || call.isEquivalentTo(place)) {
+            val form = lazy { CallableDeclaration.formOf(call, state) }
+            val handedOn = {
+                if (form.isInitialized()) {
+                    state.put(CallableDeclaration.CLASSIFIED, CallableDeclaration.Classified(call, form.value))
+                } else {
+                    state
+                }
+            }
+
             when {
-                call.isCalling(KERNEL, ALIAS) ||
-                        CallDefinitionClause.`is`(call) || // call parameters
-                        Callback.`is`(call) ||
-                        Case.isChild(call, state) ||
-                        Delegation.`is`(call) || // delegation call parameters
-                        Exception.`is`(call) ||
-                        Implementation.`is`(call) ||
-                        Import.`is`(call) ||
-                        Module.`is`(call) ||
-                        Protocol.`is`(call) ||
-                        Use.`is`(call) ||
-                        call.isCalling(KERNEL, DESTRUCTURE) || // left operand
-                        call.isCallingMacro(KERNEL, IF) || // match in condition
-                        call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
-                        call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
-                        call.isCalling(KERNEL, REQUIRE) ||
-                        call.isCallingMacro(KERNEL, UNLESS) || // match in condition
-                        call.isCallingMacro(KERNEL, "with") || // <- or = variable
-                        QuoteMacro.`is`(call) || // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
-                        Generator.isEmbed(call, state) ||
-                        Assertions.isChild(call, state)
-                -> processor.execute(call, state)
+                // Cheapest first: `declares` can resolve a reference.
+                continuesWalk(call) || bindsNames(call, state) || declares(call, processor, form)
+                -> processor.execute(call, handedOn())
                 Schema.isChild(call, state) -> {
-                    processor.execute(call, state)
+                    processor.execute(call, handedOn())
                 }
                 hasDoBlockOrKeyword(call) ->
                     // unknown macros that take do blocks often allow variables to be declared in their arguments
-                    processor.execute(call, state)
+                    processor.execute(call, handedOn())
                 Query.isChild(call, state) -> {
-                    processor.execute(call, state)
+                    processor.execute(call, handedOn())
                 }
                 /* Any other call's arguments are values, so what they hold is read, but a match inside one binds a
                    variable for the code after the call, `IO.puts(x = 1)` then `x`, and for the arguments after it,
@@ -187,6 +174,39 @@ object ProcessDeclarationsImpl {
         } else {
             true
         }
+
+    /**
+     * Only a clause's or a delegation's head binds variables, so the variable walk asks for those alone; every other
+     * declaring form's arguments are values, read in order by the `processor is Variable` arm.
+     */
+    private fun declares(call: Call, processor: PsiScopeProcessor, form: Lazy<CallableDeclaration.Form?>): Boolean =
+        if (processor is Variable) {
+            CallableDeclaration.headBindingFormOf(call) != null
+        } else {
+            form.value != null
+        }
+
+    /** A bare name in the call's arguments, or in a clause it owns, may bind a variable. */
+    private fun bindsNames(call: Call, state: ResolveState): Boolean =
+        Case.isChild(call, state) ||
+            call.isCalling(KERNEL, DESTRUCTURE) || // left operand
+            call.isCallingMacro(KERNEL, IF) || // match in condition
+            call.isCallingMacro(KERNEL, FOR) || // comprehension match variable
+            call.isCalling(KERNEL, MATCH_QUESTION_MARK) ||
+            call.isCallingMacro(KERNEL, UNLESS) || // match in condition
+            call.isCallingMacro(KERNEL, "with") || // <- or = variable
+            Assertions.isChild(call, state)
+
+    /** The walk continues through what the call names or injects. */
+    private fun continuesWalk(call: Call): Boolean =
+        call.isCalling(KERNEL, ALIAS) ||
+            call.isCalling(KERNEL, REQUIRE) ||
+            Implementation.`is`(call) ||
+            Import.`is`(call) ||
+            Module.`is`(call) ||
+            Protocol.`is`(call) ||
+            Use.`is`(call) ||
+            QuoteMacro.`is`(call) // quote :bind_quoted keys for Variable resolver OR call definitions for Callable resolver
 
     @JvmStatic
     fun processDeclarations(
