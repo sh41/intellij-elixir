@@ -1,6 +1,7 @@
 package org.elixir_lang.code_insight.line_marker_provider
 
 import com.intellij.codeInsight.ContainerProvider
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.navigation.NavigationItem
 import com.intellij.openapi.util.text.StringUtil
 import com.intellij.psi.PsiElement
@@ -8,6 +9,19 @@ import com.intellij.psi.PsiFile
 import com.intellij.psi.impl.source.tree.LeafPsiElement
 import org.elixir_lang.psi.ElixirTypes
 import org.elixir_lang.psi.call.Call
+
+/**
+ * Returns `true` when [element] is Elixir injected into a documentation code block.
+ *
+ * Such a fragment is a sample, not code that implements or is implemented, so it has nothing to mark. A
+ * marker there would also anchor a smart pointer the platform cannot reliably restore:
+ * `InjectedSelfElementInfo.getInjectedFileIn` picks between the Elixir file and the Markdown also injected
+ * into the same heredoc by comparing each one's *hull* (`injectedToHost(0, length)`), and the Markdown
+ * file's hull still spans the code block even though its shreds no longer overlap the Elixir ones. The
+ * tie-break is HashSet iteration order, with no language filter - tracked upstream as IJPL-18265.
+ */
+internal fun isDocumentationSample(element: PsiElement): Boolean =
+    InjectedLanguageManager.getInstance(element.project).isFrankensteinInjection(element)
 
 /**
  * Extracts a leaf [PsiElement] suitable for use as a [com.intellij.codeInsight.daemon.LineMarkerInfo] anchor.

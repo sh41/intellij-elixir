@@ -33,7 +33,7 @@ internal class Protocol : LineMarkerProvider {
 
         // Walk up from leaf to find the nearest enclosing Call.
         // markerAnchor(call) places the leaf at most 2 levels below the Call
-        // (Call → functionNameElement → IDENTIFIER_TOKEN), so we bound the search.
+        // (Call -> functionNameElement -> IDENTIFIER_TOKEN), so we bound the search.
         val call = generateSequence(element.parent) { it.parent }
             .take(2)
             .filterIsInstance<Call>()
@@ -42,6 +42,7 @@ internal class Protocol : LineMarkerProvider {
 
         // Verify this leaf is the marker anchor for the call
         if (element != markerAnchor(call)) return null
+        if (isDocumentationSample(element)) return null
 
         return getLineMarkerInfo(call)
     }

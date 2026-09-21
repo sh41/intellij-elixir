@@ -28,6 +28,7 @@ internal class CallDefinition : LineMarkerProvider {
         // LineMarkerProvider contract: only return info for leaf elements
         if (element.firstChild != null) return null
         if (!daemonCodeAnalyzerSettings.SHOW_METHOD_SEPARATORS) return null
+        if (isDocumentationSample(element)) return null
 
         val parent = element.parent
 
@@ -46,7 +47,7 @@ internal class CallDefinition : LineMarkerProvider {
 
         // Leaf is the marker anchor of a Call (function name identifier).
         // markerAnchor(call) places the leaf at most 2 levels below the Call
-        // (Call → functionNameElement → IDENTIFIER_TOKEN), so we bound the search.
+        // (Call -> functionNameElement -> IDENTIFIER_TOKEN), so we bound the search.
         val call = generateSequence(parent) { it.parent }
             .take(2)
             .filterIsInstance<Call>()

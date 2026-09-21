@@ -3,6 +3,7 @@ package org.elixir_lang.folding
 import com.intellij.lang.ASTNode
 import com.intellij.lang.folding.FoldingBuilderEx
 import com.intellij.lang.folding.FoldingDescriptor
+import com.intellij.lang.injection.InjectedLanguageManager
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.FoldingGroup
 import com.intellij.openapi.util.TextRange
@@ -35,6 +36,18 @@ internal class Builder : FoldingBuilderEx() {
      * @return the array of folding descriptors.
      */
     override fun buildFoldRegions(root: PsiElement, document: Document, quick: Boolean): Array<FoldingDescriptor> {
+        // An Elixir code block in documentation is a Frankenstein fragment stitched from lines of a
+        // heredoc that also has Markdown injected over it. A fold region there anchors a smart pointer the
+        // platform cannot reliably restore: InjectedSelfElementInfo.getInjectedFileIn picks between the
+        // two injected files by comparing each one's *hull* (injectedToHost(0, length)), and the Markdown
+        // file's hull still spans the whole documentation body - the code block included - even though
+        // its shreds no longer overlap the Elixir ones. A pointer inside the Elixir fragment therefore
+        // also falls inside the Markdown hull, and the platform's tie-break is HashSet iteration order,
+        // with no language filter - tracked upstream as IJPL-18265.
+        if (InjectedLanguageManager.getInstance(root.project).isFrankensteinInjection(root)) {
+            return FoldingDescriptor.EMPTY_ARRAY
+        }
+
         val foldingDescriptorList: MutableList<FoldingDescriptor> = ArrayList()
         PsiTreeUtil.processElements(root,
                                     object : PsiElementProcessor<PsiElement> {
