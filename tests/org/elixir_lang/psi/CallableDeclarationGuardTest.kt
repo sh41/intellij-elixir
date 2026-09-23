@@ -14,10 +14,8 @@ import java.io.File
  * [NOT_YET_ASKING] lists the files that still do. Migrating one deletes its row; a row whose file no longer
  * enumerates fails too, so the list only shrinks.
  *
- * Which entry point a migrating file asks matters: [CallableDeclaration.formOf] resolves a reference for two of the
- * six forms, so a caller that may not resolve - `psi/stub/type/call/Stub.java` above all, since resolution during
- * stub building is illegal - must ask [CallableDeclaration.syntacticFormOf] instead. The failure message says so;
- * this guard only counts predicate names and cannot tell which caller is which.
+ * [CallableDeclaration.formOf] resolves a reference for two of the six forms, so a caller on the stub-building path
+ * must not ask it. The failure message says which to ask instead; this guard only counts predicate names.
  */
 class CallableDeclarationGuardTest {
     @Test
@@ -86,8 +84,8 @@ class CallableDeclarationGuardTest {
         val SOURCE_EXTENSIONS = setOf("kt", "java")
 
         private const val COMPANION = """(\s*\.\s*Companion)?"""
-        // Requires the call's open parenthesis, so a method reference passed as a predicate is invisible - as at
-        // `documentation/ElixirDocumentationProvider.kt:184`. A real blind spot; widening it is its own change.
+        // Requires the call's open parenthesis, so a method reference passed as a predicate is not seen, as at
+        // `documentation/ElixirDocumentationProvider.kt:184`.
         private const val IS = """\s*\.\s*`?is`?\s*\("""
         private val BARE_IS = Regex("""(?<![.\w])`?is`?\s*\(""")
 

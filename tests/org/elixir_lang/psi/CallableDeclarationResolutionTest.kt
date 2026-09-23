@@ -49,6 +49,38 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
     }
 
     /**
+     * `import` brings in every function and macro a module defines, however it defines them, resolving just as an
+     * imported `def` does - but not a `@callback`, which the implementing module defines.
+     */
+    fun testImportBringsInEveryDefinedFormButCallbacks() {
+        myFixture.configureByFiles("through_import.ex", "eex.ex", "mix_generator.ex")
+
+        assertEquals(
+            """
+            plain(1) -> def plain(x), do: x | import Views
+            greet("x") -> EEx.function_from_string(:def, :greet, "<%= name %>", [:name]) | import Views
+            banner_text() -> Mix.Generator.embed_text(:banner, "Banner") | import Views
+            message(%{}) -> defexception [:message] | import Views
+            hook() -> nothing
+            """.trimIndent(),
+            resolutions("plain(1)", "greet(\"x\")", "banner_text()", "message(%{})", "hook()")
+        )
+    }
+
+    /** A `@spec` names a function this module defines, whichever form defines it. */
+    fun testSpecResolvesToTheFormThatDefinesIt() {
+        myFixture.configureByFiles("spec_targets.ex", "eex.ex")
+
+        assertEquals(
+            """
+            greet(term) -> EEx.function_from_string(:def, :greet, "<%= name %>", [:name])
+            message(t) -> defexception [:message]
+            """.trimIndent(),
+            resolutions("greet(term)", "message(t)")
+        )
+    }
+
+    /**
      * `:"size"` is the same atom as `:size`, so a quoted name declares, and a quoted `as:` targets, what the bare atom
      * would. An interpolated `as:` names nothing fixed, so the delegate resolves to its own head and not to the head's
      * name in the target.
@@ -99,8 +131,7 @@ class CallableDeclarationResolutionTest : PlatformTestCase() {
      * `Qualifier.unquote(variable)(...)` cannot know the name it will call, so real source reaches this
      * through [org.elixir_lang.reference.resolver.Callable.resolveQualified], which resolves that shape
      * with `name = null`. Calling [org.elixir_lang.psi.scope.call_definition_clause.MultiResolve.resolveResults]
-     * directly with `name = null` isolates that one path - before this issue it answered nothing for EEx or
-     * generator forms, unlike the other four.
+     * directly with `name = null` isolates that one path.
      */
     fun testNamelessQueryOffersEExAndGeneratorNames() {
         myFixture.configureByFiles("nameless_query.ex", "eex.ex", "mix_generator.ex")
