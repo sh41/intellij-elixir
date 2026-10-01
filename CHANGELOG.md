@@ -550,6 +550,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#4317](https://github.com/intellij-elixir/intellij-elixir/pull/4317) [@sh41](https://github.com/sh41)
+  - **The expander expands `with`, `for` and the `&` captures that need no function lookup, as each Elixir release does; nothing uses it yet.** Fixes [#4303](https://github.com/intellij-elixir/intellij-elixir/issues/4303).
 - [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
   - **The expander expands `quote` and `unquote`, as each Elixir release does; nothing uses it yet.** Fixes [#4304](https://github.com/intellij-elixir/intellij-elixir/issues/4304).
 - [#4314](https://github.com/intellij-elixir/intellij-elixir/pull/4314) [@sh41](https://github.com/sh41)
