@@ -118,6 +118,8 @@
 
 ### Bug Fixes
 
+- [#4311](https://github.com/intellij-elixir/intellij-elixir/pull/4311) [@sh41](https://github.com/sh41)
+  - **Broken code, such as an unfinished interpolation (`:"#{`, `import M, only: "#{`) or an atom longer than Elixir allows, no longer raises an error while you type, and checking where a breakpoint can go, an element's description and an alias's usages no longer log a read-lock error.** Fixes [#4296](https://github.com/intellij-elixir/intellij-elixir/issues/4296).
 - [#4314](https://github.com/intellij-elixir/intellij-elixir/pull/4314) [@sh41](https://github.com/sh41)
   - **An `import` whose `only:` or `except:` list holds anything but `name: arity` pairs now brings in nothing, as
     Elixir rejects it, `only: [{:f, 1}]` brings in `f/1`, and `except: [{:f, 1}]` leaves it out.** Fixes [#4301](https://github.com/intellij-elixir/intellij-elixir/issues/4301).
