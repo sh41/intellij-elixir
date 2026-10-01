@@ -550,6 +550,8 @@
 
 ### Threading / Platform Hygiene
 
+- [#PR-TBD](https://github.com/intellij-elixir/intellij-elixir/pull/PR-TBD) [@sh41](https://github.com/sh41)
+  - **The expander expands `quote` and `unquote`, as each Elixir release does; nothing uses it yet.** Fixes [#4304](https://github.com/intellij-elixir/intellij-elixir/issues/4304).
 - [#4314](https://github.com/intellij-elixir/intellij-elixir/pull/4314) [@sh41](https://github.com/sh41)
   - **The expander applies `alias`, `require` and `import` as each Elixir release does; nothing uses it yet.** Fixes [#4301](https://github.com/intellij-elixir/intellij-elixir/issues/4301).
 - [#4309](https://github.com/intellij-elixir/intellij-elixir/pull/4309) [@sh41](https://github.com/sh41)
