@@ -454,21 +454,7 @@ abstract class Variable : PsiScopeProcessor {
      */
     private fun isBoundBy(quote: Call, entrance: PsiElement): Boolean =
             PsiTreeUtil.isAncestor(quote.body(), entrance, false) &&
-                    !(quote.keywordArgument("unquote")?.let { AtomName.of(it) } == "true" && isInUnquote(quote, entrance))
-
-    /**
-     * Whether [entrance] is inside the expression an `unquote` of [quote] unquotes, which runs where the `quote` is:
-     * the receiver and the arguments of `Left.unquote(x)(y)` stay quoted. One inside a nested `quote` belongs to that.
-     */
-    private fun isInUnquote(quote: Call, entrance: PsiElement): Boolean {
-        val enclosing = generateSequence(entrance) { it.parent }.takeWhile { it != quote }.toList()
-
-        return enclosing
-                .drop(enclosing.indexOfLast { it is Call && QuoteMacro.`is`(it) } + 1)
-                .any { call ->
-                    call is Call && Unquote.unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
-                }
-    }
+                    !(quote.keywordArgument("unquote")?.let { AtomName.of(it) } == "true" && Unquote.isUnquotedIn(quote, entrance))
 
     private fun executeOnOnlyChild(quote: Call, state: ResolveState): Boolean =
             quote

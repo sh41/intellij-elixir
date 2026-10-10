@@ -4,6 +4,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiPolyVariantReference
 import com.intellij.psi.ResolveResult
 import com.intellij.psi.ResolveState
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.util.concurrency.annotations.RequiresReadLock
 import org.elixir_lang.psi.call.Call
 import org.elixir_lang.psi.call.name.Function.UNQUOTE
@@ -43,6 +44,22 @@ object Unquote {
                         call.isCalling(KERNEL, UNQUOTE_SPLICING) ||
                         (call is Qualified && isQualified(call))
             }
+
+    /**
+     * Whether [entrance], written under [quote], is in the expression an `unquote` of [quote] unquotes, which runs where
+     * the `quote` is: the receiver and the arguments of `Left.unquote(x)(y)` stay quoted. One inside a nested `quote`
+     * belongs to that.
+     */
+    @RequiresReadLock
+    fun isUnquotedIn(quote: Call, entrance: PsiElement): Boolean {
+        val enclosing = generateSequence(entrance) { it.parent }.takeWhile { it != quote }.toList()
+
+        return enclosing
+                .drop(enclosing.indexOfLast { it is Call && QuoteMacro.`is`(it) } + 1)
+                .any { call ->
+                    call is Call && unquotedArgument(call)?.let { PsiTreeUtil.isAncestor(it, entrance, false) } == true
+                }
+    }
 
     @RequiresReadLock
     fun isQualified(qualified: Qualified): Boolean =
