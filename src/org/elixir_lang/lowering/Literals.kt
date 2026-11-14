@@ -199,17 +199,20 @@ private fun Lowering.binary(element: PsiElement, codePoints: List<Int>): ElixirA
 private fun Lowering.binary(element: PsiElement, text: String): ElixirAst =
     ElixirAst.Literal.Binary(meta(element), text.toByteArray(Charsets.UTF_8))
 
-/** The pieces of each of [heredoc]'s lines after its indentation, with neighbouring fragments merged. */
-private fun heredocPieces(heredoc: HeredocLiteral): List<Piece> {
+/** The pieces of each of [heredoc]'s lines after its indentation and before [end], with neighbouring fragments merged. */
+private fun heredocPieces(heredoc: HeredocLiteral, end: Int = heredoc.textRange.endOffset): List<Piece> {
     val indentation = heredoc.heredocPrefix.textLength
     val pieces = mutableListOf<Piece>()
 
     for (line in heredoc.heredocLineList) {
-        line.heredocLinePrefix.text.takeIf { it.length > indentation }?.let {
-            pieces.add(Piece(ElixirTypes.FRAGMENT, it.substring(indentation), null))
-        }
-        line.body.node.getChildren(null).mapTo(pieces) { Piece(it.elementType, it.text, it) }
-        line.lastChild.node.let { pieces.add(Piece(it.elementType, it.text, it)) }
+        val prefix = line.heredocLinePrefix
+        val start = prefix.node.startOffset
+        if (start >= end) break
+        val kept = minOf(prefix.textLength, end - start)
+
+        if (kept > indentation) pieces.add(Piece(ElixirTypes.FRAGMENT, prefix.text.substring(indentation, kept), null))
+        line.body.node.getChildren(null).mapNotNullTo(pieces) { it.pieceBefore(end) }
+        line.lastChild.node.pieceBefore(end)?.let(pieces::add)
     }
 
     return pieces.fold(mutableListOf()) { merged, piece ->
@@ -316,12 +319,30 @@ private fun Lowering.part(element: PsiElement, part: Part, typed: Boolean): Elix
 
 // Sigils
 
-private fun Lowering.sigil(sigil: Sigil): ElixirAst {
-    val pieces = when (sigil) {
-        is SigilHeredocLiteral -> heredocPieces(sigil)
-        is SigilLine -> sigil.body.node.getChildren(null).toList().pieces()
-        else -> return broken(sigil)
+/**
+ * The pieces of [sigil]'s body before [end], the node [end] falls in cut to a fragment of its text before [end]; `null`
+ * for a sigil that is neither a line nor a heredoc.
+ */
+internal fun sigilPieces(sigil: Sigil, end: Int = sigil.textRange.endOffset): List<Piece>? =
+    when (sigil) {
+        is SigilHeredocLiteral -> heredocPieces(sigil, end)
+        is SigilLine -> sigil.body.node.getChildren(null).mapNotNull { it.pieceBefore(end) }
+        else -> null
     }
+
+/** This node as a piece, cut to a fragment of its text before [end]; `null` when it starts at or after [end]. */
+private fun ASTNode.pieceBefore(end: Int): Piece? {
+    val start = startOffset
+
+    return when {
+        start >= end -> null
+        start + textLength <= end -> Piece(elementType, text, this)
+        else -> Piece(ElixirTypes.FRAGMENT, text.substring(0, end - start), null)
+    }
+}
+
+private fun Lowering.sigil(sigil: Sigil): ElixirAst {
+    val pieces = sigilPieces(sigil) ?: return broken(sigil)
     val content = content(sigil, pieces, languageLevel) ?: return broken(sigil)
     val parts = when (content) {
         is Content.Empty -> listOf(binary(sigil, ""))
