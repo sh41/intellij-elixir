@@ -22,6 +22,9 @@
 
 ### Enhancements
 
+- [#4695](https://github.com/intellij-elixir/intellij-elixir/pull/4695) [@sh41](https://github.com/sh41)
+  - **With "Run the expander" on, completion inside `~p` offers the paths of the routes of the router the module's `use Phoenix.VerifiedRoutes` names, under the path typed so far with an interpolation standing for a segment, and accepting one writes each dynamic segment as an empty interpolation; a router not yet expanded is expanded in the background, so its paths are offered from the next completion, and a router that stops, with helpers on once it has more than a few routes and with helpers off once it has many, offers none ([#4688](https://github.com/intellij-elixir/intellij-elixir/issues/4688)).** Fixes [#4597](https://github.com/intellij-elixir/intellij-elixir/issues/4597).
+
 - [#4696](https://github.com/intellij-elixir/intellij-elixir/pull/4696) [@sh41](https://github.com/sh41)
   - **With "Run the expander" on, a Phoenix 1.8 controller compiles in the expander, and a module body's `cond`, `with`, and `try` with an `else` but no `rescue` or `catch` run only the body Elixir chooses, so an attribute written or a function defined there is known afterwards, as for `case` and `if`.** Refs [#4694](https://github.com/intellij-elixir/intellij-elixir/issues/4694).
 
